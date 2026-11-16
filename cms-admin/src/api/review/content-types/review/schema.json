@@ -1,0 +1,45 @@
+{
+  "kind": "collectionType",
+  "collectionName": "reviews",
+  "info": {
+    "singularName": "review",
+    "pluralName": "reviews",
+    "displayName": "Отзыв",
+    "description": "Отзыв с Яндекс.Карт. Обновляется скриптом fetch-yandex-reviews.mjs."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "author": {
+      "type": "string",
+      "required": true,
+      "maxLength": 120
+    },
+    "rating": {
+      "type": "integer",
+      "required": true,
+      "min": 1,
+      "max": 5
+    },
+    "text": {
+      "type": "text",
+      "required": true
+    },
+    "date": {
+      "type": "date"
+    },
+    "sourceUrl": {
+      "type": "string",
+      "description": "Ссылка на отзыв на Яндекс.Картах"
+    },
+    "photos": {
+      "type": "json",
+      "description": "Прямые ссылки на фотографии из отзыва (CDN Яндекс.Карт)"
+    },
+    "order": {
+      "type": "integer",
+      "default": 0
+    }
+  }
+}

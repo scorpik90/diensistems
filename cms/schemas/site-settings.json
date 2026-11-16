@@ -1,0 +1,73 @@
+{
+  "kind": "collectionType",
+  "collectionName": "site-settings",
+  "info": {
+    "singularName": "site-setting",
+    "pluralName": "site-settings",
+    "displayName": "Настройки сайта",
+    "description": "Глобальные данные: контакты, реквизиты, правила скидок. Одна запись."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "company": {
+      "type": "string",
+      "required": true
+    },
+    "legalName": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string",
+      "required": true
+    },
+    "phoneRaw": {
+      "type": "string",
+      "required": true
+    },
+    "email": {
+      "type": "string",
+      "required": true
+    },
+    "address": {
+      "type": "string",
+      "required": true
+    },
+    "city": {
+      "type": "string"
+    },
+    "foundedYear": {
+      "type": "integer"
+    },
+    "fleetMW": {
+      "type": "integer"
+    },
+    "deliveryHours": {
+      "type": "integer"
+    },
+    "rating": {
+      "type": "float"
+    },
+    "ratingCount": {
+      "type": "integer"
+    },
+    "workingHours": {
+      "type": "string"
+    },
+    "discountFromDays": {
+      "type": "integer",
+      "default": 30,
+      "description": "С какого дня аренды действует скидка"
+    },
+    "discountPercent": {
+      "type": "integer",
+      "default": 10,
+      "description": "Размер скидки, %"
+    },
+    "yandexReviewsUrl": {
+      "type": "string",
+      "description": "Добавлено автоматически при сверке схемы с импортом (yandexReviewsUrl)"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "kind": "collectionType",
+  "collectionName": "cases",
+  "info": {
+    "singularName": "case",
+    "pluralName": "cases",
+    "displayName": "Объект",
+    "description": "Кейс: реальный объект, на котором работало оборудование."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "required": true,
+      "maxLength": 200
+    },
+    "kW": {
+      "type": "integer",
+      "min": 0
+    },
+    "image": {
+      "type": "string"
+    },
+    "imageAlt": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "legacyUrls": {
+      "type": "json",
+      "description": "Все прежние адреса этого кейса — источник 301-редиректов"
+    },
+    "bodyHtml": {
+      "type": "richtext"
+    }
+  }
+}

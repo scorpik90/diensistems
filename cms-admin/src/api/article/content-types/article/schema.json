@@ -1,0 +1,39 @@
+{
+  "kind": "collectionType",
+  "collectionName": "articles",
+  "info": {
+    "singularName": "article",
+    "pluralName": "articles",
+    "displayName": "Статья",
+    "description": "Статья базы знаний. На боевом сайте лежит в корне — URL сохраняем."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": true,
+      "regex": "^[a-zA-Z0-9]+$",
+      "description": "Legacy-URL без ведущего слэша"
+    },
+    "title": {
+      "type": "string",
+      "required": true,
+      "maxLength": 250
+    },
+    "bodyHtml": {
+      "type": "richtext",
+      "description": "Тело статьи. Импорт переносит очищенный HTML с боевого сайта."
+    },
+    "excerpt": {
+      "type": "text",
+      "maxLength": 300
+    },
+    "legacyUrls": {
+      "type": "json",
+      "description": "Все прежние адреса этой статьи — источник 301-редиректов"
+    }
+  }
+}

@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────────────────────
+#  Стек для деплоя: Next.js (сайт) + Strapi (CMS) + PostgreSQL + Caddy (SSL)
+#  Запуск:  ./deploy/deploy.sh
+#  Документация: deploy/README.md
+# ─────────────────────────────────────────────────────────────
+
+name: genorg
+
+services:
+  # ── База данных ──────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [internal]
+    # БД наружу не выставляется — к ней ходит только Strapi
+
+  # ── CMS Strapi ────────────────────────────────────────────────
+  strapi:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.strapi
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 1337
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB}
+      DATABASE_USERNAME: ${POSTGRES_USER}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_SSL: 'false'
+      APP_KEYS: ${APP_KEYS}
+      API_TOKEN_SALT: ${API_TOKEN_SALT}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET}
+      TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT}
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      STRAPI_ADMIN_JWT_SECRET: ${STRAPI_ADMIN_JWT_SECRET}
+      # Сайт читает CMS по внутренней сети
+      CMS_PROVIDER: strapi
+      STRAPI_URL: http://strapi:1337
+    volumes:
+      # Загруженные в CMS файлы живут отдельно от контейнера
+      - strapi-uploads:/app/public/uploads
+      # Данные и скрипты импорта — из репозитория, чтобы обновлять без пересборки
+      - ./content:/app/content:ro
+      - ./scripts:/app/scripts:ro
+    ports:
+      # Админка доступна только с самого сервера (через SSH-туннель)
+      - '127.0.0.1:1337:1337'
+    networks: [internal, web]
+
+  # ── Сайт Next.js ──────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+      args:
+        # Токен нужен уже на этапе сборки: generateStaticParams тянет данные из CMS
+        CMS_PROVIDER: strapi
+        STRAPI_URL: http://strapi:1337
+        STRAPI_TOKEN: ${STRAPI_TOKEN}
+    restart: unless-stopped
+    depends_on:
+      - strapi
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      CMS_PROVIDER: strapi
+      STRAPI_URL: http://strapi:1337
+      STRAPI_TOKEN: ${STRAPI_TOKEN}
+      # Заявки с формы сохраняются в CMS этим токеном
+      STRAPI_WRITE_TOKEN: ${STRAPI_WRITE_TOKEN}
+      # Публичный адрес сайта — для canonical, sitemap и OpenGraph
+      SITE_URL: ${SITE_URL}
+    networks: [web]
+
+  # ── Reverse proxy + бесплатный SSL ────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      SITE_URL: ${SITE_URL}
+      CMS_URL: ${CMS_URL}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [web]
+
+volumes:
+  db-data:
+  strapi-uploads:
+  caddy-data:
+  caddy-config:
+
+networks:
+  # internal — без выхода в интернет (только БД)
+  internal:
+    internal: true
+  # web — наружу и между сервисами
+  web:

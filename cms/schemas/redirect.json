@@ -1,0 +1,30 @@
+{
+  "kind": "collectionType",
+  "collectionName": "redirects",
+  "info": {
+    "singularName": "redirect",
+    "pluralName": "redirects",
+    "displayName": "301-редирект",
+    "description": "Таблица редиректов со старых адресов. Заполняется автоматически при миграции."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "from": {
+      "type": "string",
+      "required": true,
+      "unique": true,
+      "description": "Старый путь без ведущего слэша"
+    },
+    "to": {
+      "type": "string",
+      "required": true,
+      "description": "Новый путь без ведущего слэша"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Почему редирект: duplicate, manual, renamed"
+    }
+  }
+}

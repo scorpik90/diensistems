@@ -1,0 +1,63 @@
+# Вариант C1 — локальная CMS (Strapi + PostgreSQL)
+#
+#   docker compose up -d
+#   → CMS:      http://localhost:1337/admin
+#   → API:      http://localhost:1337/api
+#   → Postgres: localhost:5432
+#
+# После первого запуска:
+#   1) создать админа через /admin
+#   2) скопировать схемы из ./schemas в ./strapi/src/api/<collection>/content-types/<collection>/schema.json
+#   3) выдать API-токен (Settings → API Tokens → Full access)
+#   4) положить токен в .env проекта: STRAPI_TOKEN=...
+#   5) загрузить данные:  node scripts/import-to-strapi.mjs
+#   6) переключить фронт:  CMS_PROVIDER=strapi
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: genorg-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: genorg
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-genorg_dev_password}
+      POSTGRES_DB: genorg
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U genorg']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - '5432:5432'
+
+  cms:
+    image: strapi/strapi:5-node20
+    container_name: genorg-cms
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: genorg
+      DATABASE_USERNAME: genorg
+      DATABASE_PASSWORD: ${DB_PASSWORD:-genorg_dev_password}
+      APP_KEYS: ${APP_KEYS:-change-me-1,change-me-2,change-me-3,change-me-4}
+      API_TOKEN_SALT: ${API_TOKEN_SALT:-change-me-salt}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:-change-me-jwt}
+      TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT:-change-me-transfer}
+      JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret}
+      STRAPI_TELEMETRY_DISABLED: 'true'
+    volumes:
+      - ./strapi:/opt/app
+      - cms-uploads:/opt/app/public/uploads
+    ports:
+      - '1337:1337'
+
+volumes:
+  db-data:
+  cms-uploads:

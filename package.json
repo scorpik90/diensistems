@@ -1,0 +1,25 @@
+{
+  "name": "genorg-headless",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "start": "next start -p 3100",
+    "lint": "next lint",
+    "migrate": "node scripts/migrate-to-cms.mjs",
+    "verify": "node scripts/verify-crawl.mjs"
+  },
+  "dependencies": {
+    "next": "^15.5.29",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "@types/react": "19.0.7",
+    "@types/react-dom": "19.0.3",
+    "cheerio": "^1.0.0",
+    "typescript": "5.7.3"
+  }
+}

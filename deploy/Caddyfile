@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────
+#  Caddy — reverse proxy и автоматический SSL (Let's Encrypt)
+#
+#  Сертификат выпускается автоматически, когда домен уже указывает
+#  на этот сервер. До этого Caddy отдаёт сайт по HTTP.
+# ─────────────────────────────────────────────────────────────
+
+{$SITE_URL} {
+	encode gzip zstd
+	reverse_proxy web:3000
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-X-Frame-Options "SAMEORIGIN"
+	}
+
+	log {
+		output file /data/access.log
+		format console
+	}
+}
+
+# Админка CMS — на отдельном поддомене
+{$CMS_URL} {
+	encode gzip zstd
+	reverse_proxy strapi:1337
+
+	header {
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+	}
+}
+
+# ACME-челлендж для Let's Encrypt
+http {
+	redir https://{host}{uri} permanent
+}

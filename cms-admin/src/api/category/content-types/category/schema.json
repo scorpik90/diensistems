@@ -1,0 +1,36 @@
+{
+  "kind": "collectionType",
+  "collectionName": "categories",
+  "info": {
+    "singularName": "category",
+    "pluralName": "categories",
+    "displayName": "Категория техники",
+    "description": "Справочник категорий. Один источник для меню, каталогов и фильтров."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "key": {
+      "type": "string",
+      "required": true
+    },
+    "label": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "unit": {
+      "type": "string",
+      "default": "кВт"
+    },
+    "order": {
+      "type": "integer",
+      "default": 0
+    }
+  }
+}

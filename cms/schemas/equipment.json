@@ -1,0 +1,109 @@
+{
+  "kind": "collectionType",
+  "collectionName": "equipment",
+  "info": {
+    "singularName": "equipment-item",
+    "pluralName": "equipment",
+    "displayName": "Позиция каталога",
+    "description": "Единая сущность для всей техники: ДГУ, ПЭС, компрессоры, манипуляторы, продажа б/у. Различается полем category. slug сохраняет legacy-URL боевого сайта."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": true,
+      "description": "Legacy-URL без ведущего слэша. Менять только вместе с настройкой 301."
+    },
+    "category": {
+      "type": "enumeration",
+      "enum": [
+        "generator",
+        "pes",
+        "compressor",
+        "compressor-shift",
+        "manipulator",
+        "used"
+      ],
+      "required": true,
+      "default": "generator"
+    },
+    "categoryLabel": {
+      "type": "string",
+      "description": "Отображаемое название категории"
+    },
+    "title": {
+      "type": "string",
+      "required": true,
+      "maxLength": 200
+    },
+    "titleFull": {
+      "type": "string",
+      "maxLength": 250,
+      "description": "Полное легаси-заголовок (может содержать цену)"
+    },
+    "model": {
+      "type": "string",
+      "required": true,
+      "maxLength": 120,
+      "description": "Марка и модель: Airman SDG150, HINO 500, …"
+    },
+    "brand": {
+      "type": "string",
+      "description": "Бренд: Airman, Denyo, Cummins, HINO, ISUZU, Atlas Copco"
+    },
+    "isNew": {
+      "type": "boolean",
+      "default": false,
+      "description": "Показывать метку «Новинка» и поднимать позицию в каталоге"
+    },
+    "power": {
+      "type": "float",
+      "min": 0,
+      "description": "Основная величина позиции: мощность, кВт / производительность, м³/мин / грузоподъёмность, т. Тип float — у компрессоров бывают дробные значения (9,3 м³/мин)."
+    },
+    "powerUnit": {
+      "type": "string",
+      "default": "кВт"
+    },
+    "priceValue": {
+      "type": "integer",
+      "min": 0,
+      "description": "Цена. Единая точка правды: из неё собираются карточка, прайс-лист и JSON-LD Offer."
+    },
+    "priceUnit": {
+      "type": "string",
+      "default": "/сутки",
+      "description": "/сутки, /смена, /час"
+    },
+    "priceRaw": {
+      "type": "text",
+      "description": "Исходная строка цены из легаси-сайта — для сверки"
+    },
+    "specGroups": {
+      "type": "json",
+      "description": "ТТХ: [{ group, rows: [{ label, value }] }]"
+    },
+    "image": {
+      "type": "string",
+      "description": "Путь к файлу в медиатеке Strapi"
+    },
+    "imageAlt": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "description": {
+      "type": "text"
+    },
+    "legacyUrls": {
+      "type": "json",
+      "description": "Все прежние адреса этой позиции — источник 301-редиректов"
+    },
+    "order": {
+      "type": "integer",
+      "default": 0
+    }
+  }
+}

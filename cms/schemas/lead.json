@@ -1,0 +1,59 @@
+{
+  "kind": "collectionType",
+  "collectionName": "leads",
+  "info": {
+    "singularName": "lead",
+    "pluralName": "leads",
+    "displayName": "Заявка",
+    "description": "Заявка с формы обратной связи. Основное хранилище лидов — здесь, а не на боевом сайте."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "maxLength": 120
+    },
+    "phone": {
+      "type": "string",
+      "required": true,
+      "maxLength": 40
+    },
+    "topic": {
+      "type": "string",
+      "maxLength": 120,
+      "description": "Тема обращения: тип оборудования"
+    },
+    "message": {
+      "type": "text",
+      "description": "Комментарий посетителя: мощность, срок, адрес объекта"
+    },
+    "orderItem": {
+      "type": "string",
+      "maxLength": 160,
+      "description": "Позиция каталога, с которой отправлена заявка"
+    },
+    "source": {
+      "type": "string",
+      "maxLength": 80,
+      "description": "Откуда пришла: страница, utm-метка"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["new", "in-progress", "done", "spam"],
+      "default": "new",
+      "required": true,
+      "description": "Статус обработки заявки"
+    },
+    "comment": {
+      "type": "text",
+      "description": "Внутренний комментарий менеджера"
+    },
+    "delivered": {
+      "type": "json",
+      "description": "Куда доставлена заявка: { cms, legacy, crm }"
+    }
+  }
+}

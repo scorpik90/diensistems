@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────
+#  Образ CMS: Strapi 5 (production)
+# ─────────────────────────────────────────────────────────────
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY cms-admin/package.json cms-admin/package-lock.json* ./cms-admin/
+RUN cd cms-admin && npm ci --ignore-scripts
+
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY cms-admin ./cms-admin
+WORKDIR /app/cms-admin
+# better-sqlite3 и esbuild требуют сборки — на alpine нужен python3 и make
+RUN apk add --no-cache python3 make g++ && \
+    npm rebuild better-sqlite3 && \
+    npm run build
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=1337
+
+RUN apk add --no-cache python3 make g++ libc6-compat && \
+    addgroup -g 1001 -S nodejs && \
+    adduser -S strapi -u 1001
+
+COPY --from=deps /app/cms-admin/node_modules ./node_modules
+COPY --from=builder /app/cms-admin/dist ./dist
+COPY --from=builder /app/cms-admin/package.json ./package.json
+COPY --from=builder /app/cms-admin/config ./config
+COPY --from=builder /app/cms-admin/src ./src
+COPY --from=builder /app/cms-admin/tsconfig.json ./tsconfig.json
+# Данные для импорта и скрипты миграции
+COPY content ./content
+COPY scripts ./scripts
+
+RUN mkdir -p /app/public/uploads && chown -R strapi:nodejs /app
+USER strapi
+EXPOSE 1337
+CMD ["node", "node_modules/@strapi/strapi/bin/strapi.js", "start"]

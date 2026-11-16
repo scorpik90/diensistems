@@ -1,0 +1,34 @@
+import fs from 'node:fs';
+
+/**
+ * Пересобирает PWA-манифест под актуальные иконки.
+ *
+ *   node scripts/make-manifest.mjs
+ */
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, '..');
+
+const manifest = {
+  name: 'ДИЭН-Системс — аренда дизельных генераторов',
+  short_name: 'ДИЭН-Системс',
+  description:
+    'Аренда дизельных генераторов AIRMAN, DENYO и Cummins от 2 000 ₽/сутки. Москва и МО.',
+  start_url: '/',
+  display: 'standalone',
+  background_color: '#ffffff',
+  theme_color: '#f2670a',
+  icons: [
+    { src: '/icon.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
+  ],
+};
+
+fs.writeFileSync(
+  path.join(ROOT, 'public', 'manifest.webmanifest'),
+  JSON.stringify(manifest, null, 2),
+  'utf8'
+);
+console.log('  ✓ public/manifest.webmanifest');

@@ -1,0 +1,29 @@
+{
+  "kind": "collectionType",
+  "collectionName": "price-tables",
+  "info": {
+    "singularName": "price-table",
+    "pluralName": "price-tables",
+    "displayName": "Прайс-таблица",
+    "description": "Одна таблица прайс-листа. Строки и ячейки хранятся в JSON — так таблица рендерится из данных, а не из вёрстки."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "index": {
+      "type": "integer",
+      "required": true,
+      "description": "Порядковый номер таблицы на странице прайс-листа"
+    },
+    "title": {
+      "type": "string",
+      "description": "Заголовок таблицы, например «Генератор дизельный»"
+    },
+    "rows": {
+      "type": "json",
+      "required": true,
+      "description": "[[{ text, strong, link }], ...]"
+    }
+  }
+}

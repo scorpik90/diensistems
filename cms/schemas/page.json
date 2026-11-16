@@ -1,0 +1,55 @@
+{
+  "kind": "collectionType",
+  "collectionName": "pages",
+  "info": {
+    "singularName": "page",
+    "pluralName": "pages",
+    "displayName": "Статическая страница",
+    "description": "Текстовые страницы, каталоги категорий и прайс-лист. kind определяет, что отрисует шаблон."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "required": true,
+      "maxLength": 200
+    },
+    "bodyHtml": {
+      "type": "richtext",
+      "description": "Тело страницы. Для kind=catalog и kind=price не используется."
+    },
+    "excerpt": {
+      "type": "text",
+      "maxLength": 300,
+      "description": "Используется как meta-description"
+    },
+    "kind": {
+      "type": "enumeration",
+      "enum": ["static", "catalog", "price", "cases", "articles", "contacts"],
+      "required": true,
+      "default": "static"
+    },
+    "category": {
+      "type": "enumeration",
+      "enum": [
+        "generator",
+        "pes",
+        "compressor",
+        "compressor-shift",
+        "manipulator",
+        "used"
+      ],
+      "description": "Для kind = catalog — какая категория показывается"
+    },
+    "legacyUrls": {
+      "type": "json"
+    }
+  }
+}
