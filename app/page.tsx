@@ -1,15 +1,15 @@
 import Link from 'next/link';
-import { getCMS } from '@/lib/cms';
+import { getCMS, getContent } from '@/lib/cms';
 import { money } from '@/lib/format';
-import { CASE_IMAGE_WIDTH, caseImageDir, equipmentImageDir } from '@/lib/media';
 import { faqJsonLd, jsonLd } from '@/lib/seo';
-import { ADVANTAGES, FAQS, STEPS, TARIFFS } from '@/lib/content-blocks';
+import { homeTokens, pluralize } from '@/lib/tokens';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import CalcWidget from '@/components/CalcWidget';
 import LeadForm from '@/components/LeadForm';
 import Faq from '@/components/Faq';
 import MediaPlaceholder from '@/components/MediaPlaceholder';
+import CmsImage from '@/components/CmsImage';
 import YandexRatingBadge from '@/components/YandexRatingBadge';
 import CatalogGrid, { Card as CatalogCard } from '@/components/CatalogGrid';
 import { sortByPriority } from '@/lib/sort';
@@ -32,6 +32,10 @@ import {
  *
  * Рендеринг: ISR — страница пересобирается раз в 60 секунд,
  * поэтому правка цены в CMS попадает на сайт без деплоя.
+ *
+ * Все тексты берутся из CMS (коллекция «Текстовый блок»): блоки
+ * home.hero, home.catalog, home.process, home.advantages, home.tariffs,
+ * home.cases, home.trust, home.faq, home.lead.
  */
 export const revalidate = 60;
 
@@ -44,20 +48,21 @@ const ADV_ICON: Record<string, (p: { className?: string }) => React.ReactElement
   spark: IconSpark,
 };
 
-/** Бренды в парке — клик открывает каталог с фильтром по бренду.
-    Список собирается из данных CMS (см. brandLinks ниже), поэтому
-    каждая ссылка ведёт в каталог, где такой бренд точно есть. */
-
 export default async function HomePage() {
   const cms = getCMS();
-  const [settings, generators, cases, categories, reviews, allEquipment] = await Promise.all([
-    cms.getSettings(),
-    cms.getEquipmentByCategory('generator'),
-    cms.getCases(),
-    cms.getCategories(),
-    cms.getReviews(),
-    cms.getEquipment(),
-  ]);
+  const [settings, generators, cases, categories, reviews, allEquipment, content] =
+    await Promise.all([
+      cms.getSettings(),
+      cms.getEquipmentByCategory('generator'),
+      cms.getCases(),
+      cms.getCategories(),
+      cms.getReviews(),
+      cms.getEquipment(),
+      getContent(),
+    ]);
+
+  /* Подстановки: числа — из каталога, тексты — из CMS */
+  const tokens = homeTokens(generators, settings);
 
   /**
    * Полоса брендов строится из данных CMS, а не из ручного списка.
@@ -89,67 +94,79 @@ export default async function HomePage() {
     .filter((g) => g.price)
     .map((g) => ({ kW: g.power ?? 0, model: g.model, pricePerDay: g.price!.value }));
 
+  /* Блоки страницы */
+  const hero = content.o('home.hero', tokens);
+  const brandsBlk = content.o('home.brands', tokens);
+  const catalogBlk = content.o('home.catalog', tokens);
+  const process = content.o('home.process', tokens);
+  const advantages = content.o('home.advantages', tokens);
+  const tariffsBlk = content.o('home.tariffs', tokens);
+  const casesBlk = content.o('home.cases', tokens);
+  const trust = content.o('home.trust', tokens);
+  const faqBlk = content.o('home.faq', tokens);
+  const leadBlk = content.o('home.lead', tokens);
+  const calcLabels = content.o('calc.main', tokens);
+  const cardLabels = content.o('catalog.card', tokens);
+
+  const steps = (process.steps as { title: string; text: string; time: string }[]) ?? [];
+  const advCards = (advantages.cards as { icon: string; title: string; text: string }[]) ?? [];
+  const tariffs = (tariffsBlk.tariffs as {
+    name: string;
+    desc: string;
+    featured: boolean;
+    items: { label: string; on: boolean }[];
+  }[]) ?? [];
+  const faqs = (faqBlk.faq as { q: string; a: string }[]) ?? [];
+  const leadPoints = (leadBlk.points as { title: string; text: string }[]) ?? [];
+
   return (
     <>
-      <SiteHeader settings={settings} />
+      <SiteHeader settings={settings} content={content} tokens={tokens} />
 
       <main id="main">
         {/* ─── HERO + калькулятор ─── */}
         <section className="hero">
           <div className="hero__bg" aria-hidden="true">
-            <picture>
-              <source type="image/avif" srcSet="/images/hero-2/1280.avif" />
-              <source type="image/webp" srcSet="/images/hero-2/1280.webp" />
-              <img
-                src="/images/hero-2/1280.jpg"
-                alt=""
-                width={1280}
-                height={337}
-                fetchPriority="high"
-                decoding="async"
-              />
-            </picture>
+            {settings.heroImage && (
+              <CmsImage image={settings.heroImage} alt="" priority />
+            )}
           </div>
 
           <div className="container hero__inner">
             <div className="hero__content">
               <span className="hero__eyebrow">
                 <IconShield />
-                Японское оборудование AIRMAN и DENYO
+                {hero.eyebrow as string}
               </span>
 
               <h1>
-                Аренда генераторов{' '}
-                <em>от {money(cheapest.price!.value)} ₽/сутки</em> с доставкой за 2 часа
+                {hero.h1Before as string}{' '}
+                <em>{hero.h1Price as string}</em> {hero.h1After as string}
               </h1>
 
-              <p className="hero__lead">
-                Собственный парк дизельных электростанций на {settings.fleetMW} МВт — от 8 до 800 кВт.
-                Техобслуживание, ГРЩ и силовой кабель включены в тариф.
-                Круглосуточная выездная поддержка по Москве и области.
-              </p>
+              <p className="hero__lead">{hero.lead as string}</p>
 
               <div className="hero__actions">
                 <Link className="btn btn--lg" href="#calc">
-                  Подобрать мощность за 30 секунд
+                  {hero.btnPrimary as string}
                 </Link>
                 <Link className="btn btn--lg btn--ghost-light" href="/arendageneratorov">
-                  Смотреть каталог из {generators.length} моделей
+                  {hero.btnSecondary as string}
                 </Link>
               </div>
 
               <dl className="hero__facts">
                 <div>
                   <dd className="hero__fact-value">{settings.fleetMW} МВт</dd>
-                  <dt className="hero__fact-label">собственный парк</dt>
+                  <dt className="hero__fact-label">{(hero.factLabels as string[])?.[0]}</dt>
                 </div>
                 <div>
                   <dd className="hero__fact-value">от {settings.deliveryHours} ч</dd>
-                  <dt className="hero__fact-label">доставка по Москве</dt>
+                  <dt className="hero__fact-label">{(hero.factLabels as string[])?.[1]}</dt>
                 </div>
                 <div>
-                  <dd className="hero__fact-value">{2026 - settings.foundedYear} лет</dd>
-                  <dt className="hero__fact-label">на рынке с {settings.foundedYear}</dt>
+                  <dd className="hero__fact-value">{tokens.years} лет</dd>
+                  <dt className="hero__fact-label">{(hero.factLabels as string[])?.[2]}</dt>
                 </div>
               </dl>
             </div>
@@ -159,21 +176,26 @@ export default async function HomePage() {
               discountFromDays={settings.discountFromDays}
               discountPercent={settings.discountPercent}
               deliveryHours={settings.deliveryHours}
+              phoneRaw={settings.phoneRaw}
+              labels={calcLabels}
             />
           </div>
         </section>
 
         {/* ─── Бренды ─── */}
-        <section className="brands" aria-label="Оборудование в парке">
+        <section className="brands" aria-label={brandsBlk.ariaLabel as string}>
           <div className="container brands__inner">
-            <span className="brands__label">В парке</span>
+            <span className="brands__label">{brandsBlk.label as string}</span>
             <div className="brands__list">
               {brandLinks.map((b) => (
                 <Link
                   className="brands__item"
                   key={b.brand}
                   href={`/${b.slug}?brand=${encodeURIComponent(b.brand)}`}
-                  title={`Каталог техники ${b.brand} — ${b.count} позиций`}
+                  title={(brandsBlk.itemTitle as string)
+                    .replace('{brand}', b.brand)
+                    .replace('{brandCount}', String(b.count))
+                    .replace('{itemWord}', pluralize(b.count, ['позиция', 'позиции', 'позиций']))}
                 >
                   {b.brand}
                 </Link>
@@ -186,23 +208,20 @@ export default async function HomePage() {
         <section className="section" id="catalog">
           <div className="container">
             <div className="head">
-              <span className="head__eyebrow">Каталог</span>
-              <h2>Дизельные генераторы в аренду</h2>
-              <p>
-                Каждая модель в наличии на базе в Химках. Сдаём «сухую аренду» — без топлива и
-                оператора, либо по тарифу «под ключ» с топливом, ТО и дежурным механиком.
-              </p>
+              <span className="head__eyebrow">{catalogBlk.eyebrow as string}</span>
+              <h2>{catalogBlk.title as string}</h2>
+              <p>{catalogBlk.lead as string}</p>
             </div>
 
             <div className="cards cards--preview">
               {sortByPriority(generators).slice(0, 4).map((g) => (
-                <CatalogCard item={g} key={g.slug} />
+                <CatalogCard item={g} key={g.slug} labels={cardLabels} />
               ))}
             </div>
 
             <div style={{ textAlign: 'center', marginTop: 28 }}>
               <Link className="btn btn--outline btn--lg" href="/arendageneratorov">
-                Весь каталог — {generators.length} моделей
+                {catalogBlk.btn as string}
                 <IconArrow className="btn__icon" />
               </Link>
             </div>
@@ -228,14 +247,14 @@ export default async function HomePage() {
         <section className="section section--card" id="how">
           <div className="container">
             <div className="head head--center">
-              <span className="head__eyebrow">Процесс</span>
-              <h2>Как арендовать генератор</h2>
-              <p>От заявки до запуска — в среднем 2–4 часа в пределах МКАД</p>
+              <span className="head__eyebrow">{process.eyebrow as string}</span>
+              <h2>{process.title as string}</h2>
+              <p>{process.lead as string}</p>
             </div>
             <div className="steps">
-              {STEPS.map((s) => (
-                <article className="step" key={s.num}>
-                  <div className="step__num">{s.num}</div>
+              {steps.map((s, i) => (
+                <article className="step" key={s.title}>
+                  <div className="step__num">{i + 1}</div>
                   <h3>{s.title}</h3>
                   <p>{s.text}</p>
                   <span className="step__time">
@@ -252,15 +271,12 @@ export default async function HomePage() {
         <section className="section">
           <div className="container">
             <div className="head">
-              <span className="head__eyebrow">Почему мы</span>
-              <h2>Собственный парк — а не субаренда</h2>
-              <p>
-                Мы владеем техникой и сдаём её в субаренду, а не перепродаём. Это значит цена без наценки,
-                подменная машина в наличии и ответственность за результат — наша.
-              </p>
+              <span className="head__eyebrow">{advantages.eyebrow as string}</span>
+              <h2>{advantages.title as string}</h2>
+              <p>{advantages.lead as string}</p>
             </div>
             <div className="advantages">
-              {ADVANTAGES.map((a) => {
+              {advCards.map((a) => {
                 const Ico = ADV_ICON[a.icon] ?? IconSpark;
                 return (
                   <article className="adv" key={a.title}>
@@ -278,17 +294,16 @@ export default async function HomePage() {
         <section className="section section--card" id="tariffs">
           <div className="container">
             <div className="head head--center">
-              <span className="head__eyebrow">Тарифы</span>
-              <h2>Выбор пакета услуг</h2>
-              <p>
-                Скидка {settings.discountPercent}% при аренде от {settings.discountFromDays} дней.
-                Доставка и вывоз по Москве в пределах МКАД — бесплатно.
-              </p>
+              <span className="head__eyebrow">{tariffsBlk.eyebrow as string}</span>
+              <h2>{tariffsBlk.title as string}</h2>
+              <p>{tariffsBlk.lead as string}</p>
             </div>
             <div className="tariffs">
-              {TARIFFS.map((t) => (
+              {tariffs.map((t) => (
                 <article className={`tariff${t.featured ? ' tariff--featured' : ''}`} key={t.name}>
-                  {t.featured && <span className="tariff__flag">Выбирают чаще</span>}
+                  {t.featured && (
+                    <span className="tariff__flag">{tariffsBlk.featuredFlag as string}</span>
+                  )}
                   <div className="tariff__head">
                     <h3 className="tariff__name">{t.name}</h3>
                     <p className="tariff__desc">{t.desc}</p>
@@ -303,7 +318,7 @@ export default async function HomePage() {
                   </ul>
                   <div className="tariff__foot">
                     <Link className={`btn ${t.featured ? '' : 'btn--outline'} btn--block`} href="/#lead">
-                      Заказать
+                      {tariffsBlk.btn as string}
                     </Link>
                   </div>
                 </article>
@@ -316,34 +331,23 @@ export default async function HomePage() {
         <section className="section" id="cases">
           <div className="container">
             <div className="head">
-              <span className="head__eyebrow">Объекты</span>
-              <h2>Где мы работаем</h2>
-              <p>
-                Строительные площадки, торговые центры, рестораны, мероприятия и режимные объекты
-                по Москве и Московской области.
-              </p>
+              <span className="head__eyebrow">{casesBlk.eyebrow as string}</span>
+              <h2>{casesBlk.title as string}</h2>
+              <p>{casesBlk.lead as string}</p>
             </div>
             <div className="cases">
               {cases.slice(0, 6).map((c) => {
-                const dir = caseImageDir(c);
                 return (
                   <Link className="case" href={`/${c.slug}`} key={c.slug}>
                     <div className="case__media">
-                      {dir ? (
-                        <picture>
-                          <source type="image/avif" srcSet={`/images/${dir}/${CASE_IMAGE_WIDTH}.avif`} />
-                          <source type="image/webp" srcSet={`/images/${dir}/${CASE_IMAGE_WIDTH}.webp`} />
-                          <img
-                            src={`/images/${dir}/${CASE_IMAGE_WIDTH}.jpg`}
-                            alt={c.title}
-                            width={CASE_IMAGE_WIDTH}
-                            height={200}
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        </picture>
+                      {c.image ? (
+                        <CmsImage image={c.image} alt={c.imageAlt || c.title} width={400} height={300} />
                       ) : (
-                        <MediaPlaceholder kind="case" title={c.title} subtitle="Фото объекта нет" />
+                        <MediaPlaceholder
+                          kind="case"
+                          title={c.title}
+                          subtitle={casesBlk.placeholder as string}
+                        />
                       )}
                     </div>
                     <div className="case__overlay" />
@@ -351,7 +355,7 @@ export default async function HomePage() {
                       {c.kW && <span className="case__meta">{c.kW} кВт</span>}
                       <h3 className="case__title">{c.title}</h3>
                       <span className="case__link">
-                        Смотреть объект
+                        {casesBlk.cta as string}
                         <IconArrow />
                       </span>
                     </div>
@@ -367,12 +371,9 @@ export default async function HomePage() {
           <div className="container trust">
             <div>
               <div className="head">
-                <span className="head__eyebrow">Доверие</span>
-                <h2>{2026 - settings.foundedYear} лет без простоев</h2>
-                <p>
-                  Средняя оценка на картах и в отзывах клиентов. Ниже — реальные ситуации
-                  из практики отдела аренды.
-                </p>
+                <span className="head__eyebrow">{trust.eyebrow as string}</span>
+                <h2>{trust.title as string}</h2>
+                <p>{trust.lead as string}</p>
               </div>
               {/* Оценка — живой бейдж Яндекс.Карт.
                   Свои цифры не выдумываем: виджет всегда показывает
@@ -382,20 +383,18 @@ export default async function HomePage() {
                   <IconStar />
                 </span>
                 <div className="rating__text">
-                  <p className="rating__title">Рейтинг на Яндекс.Картах</p>
-                  <p className="rating__sub">
-                    Оценка и число отзывов — живые, из карточек организации
-                  </p>
+                  <p className="rating__title">{trust.ratingTitle as string}</p>
+                  <p className="rating__sub">{trust.ratingSub as string}</p>
                 </div>
-                <YandexRatingBadge orgId="1088163471" />
+                <YandexRatingBadge orgId={settings.yandexOrgId ?? '1088163471'} />
                 <a
                   className="rating__more"
                   href={settings.yandexReviewsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <b>Все отзывы</b>
-                  <span>на Яндекс.Картах</span>
+                  <b>{trust.reviewsLink as string}</b>
+                  <span>{trust.reviewsLinkSub as string}</span>
                   <IconArrow className="rating__arrow" />
                 </a>
               </div>
@@ -427,7 +426,7 @@ export default async function HomePage() {
                           href={src}
                           target="_blank"
                           rel="noopener noreferrer nofollow"
-                          aria-label="Фото из отзыва на Яндекс.Картах"
+                          aria-label={trust.photoAria as string}
                         >
                           <img
                             src={src}
@@ -447,7 +446,7 @@ export default async function HomePage() {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Читать на Яндекс.Картах
+                    {trust.reviewCta as string}
                     <IconArrow />
                   </a>
                 </article>
@@ -460,14 +459,14 @@ export default async function HomePage() {
         <section className="section" id="faq">
           <div className="container">
             <div className="head head--center">
-              <span className="head__eyebrow">FAQ</span>
-              <h2>Частые вопросы</h2>
+              <span className="head__eyebrow">{faqBlk.eyebrow as string}</span>
+              <h2>{faqBlk.title as string}</h2>
             </div>
-            <Faq items={FAQS} />
+            <Faq items={faqs} />
           </div>
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: jsonLd(faqJsonLd(FAQS)) }}
+            dangerouslySetInnerHTML={{ __html: jsonLd(faqJsonLd(faqs)) }}
           />
         </section>
 
@@ -475,35 +474,34 @@ export default async function HomePage() {
         <section className="section section--dark" id="lead">
           <div className="container lead">
             <div>
-              <span className="head__eyebrow">Заявка</span>
-              <h2>Рассчитаем стоимость за 10 минут</h2>
+              <span className="head__eyebrow">{leadBlk.eyebrow as string}</span>
+              <h2>{leadBlk.title as string}</h2>
               <p style={{ color: '#94a3b8', fontSize: '1.0625rem', maxWidth: '52ch' }}>
-                Оставьте контакты — инженер перезвонит, уточнит нагрузку и режим работы
-                и пришлёт коммерческое предложение с фиксированной ценой.
+                {leadBlk.lead as string}
               </p>
               <div className="lead__points">
-                {[
-                  ['Ответ за 10 минут', 'в рабочее время — с 8:00 до 20:00, без выходных'],
-                  ['Расчёт без обязательств', 'подбор модели и схемы подключения бесплатно'],
-                  ['КП и договор за час', 'пришлём смету с ценами, сроками и условиями'],
-                ].map(([t, d]) => (
-                  <div className="lead__point" key={t}>
+                {leadPoints.map((p) => (
+                  <div className="lead__point" key={p.title}>
                     <span className="lead__point-ico" aria-hidden="true"><IconClock /></span>
                     <div>
-                      <b>{t}</b>
-                      <span>{d}</span>
+                      <b>{p.title}</b>
+                      <span>{p.text}</span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <LeadForm />
+            <LeadForm
+              labels={content.o('form.main', tokens)}
+              phone={settings.phone}
+              policyUrl={settings.legalPolicyUrl}
+            />
           </div>
         </section>
       </main>
 
-      <SiteFooter settings={settings} />
+      <SiteFooter settings={settings} content={content} tokens={tokens} />
     </>
   );
 }

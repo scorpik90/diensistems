@@ -23,7 +23,62 @@ export interface SiteSettings {
   discountPercent: number;
   /** Страница отзывов на Яндекс.Картах */
   yandexReviewsUrl: string;
+  /** ID организации на Яндекс.Картах — для виджета рейтинга */
+  yandexOrgId?: string;
+  /** Логотипы и фоны — из медиатеки Strapi */
+  logo?: CmsImage | null;
+  logoMark?: CmsImage | null;
+  heroImage?: CmsImage | null;
+  /** Тексты подвала */
+  footerAbout?: string;
+  footerBottom?: string;
+  footerContactsTitle?: string;
+  legalPolicyUrl?: string;
+  /** Мета-теги по умолчанию */
+  seoTitle?: string;
+  seoDescription?: string;
+  ogTitle?: string;
+  ogDescription?: string;
 }
+
+/**
+ * Изображение из медиатеки Strapi.
+ *
+ * Сайт больше не знает путей к файлам на диске — все снимки
+ * лежат в CMS и приходят отсюда.
+ */
+export interface CmsImage {
+  /** Абсолютный или относительный URL оригинала */
+  url: string;
+  width: number;
+  height: number;
+  alternativeText?: string | null;
+  /** Производные размеры Strapi: thumbnail / small / medium / large */
+  formats?: Record<string, { url: string; width: number; height: number }>;
+}
+
+/** Редактируемый текстовый блок из CMS */
+export interface ContentBlock {
+  key: string;
+  group: string;
+  title?: string | null;
+  text?: string | null;
+  value?: string | null;
+  items?: Record<string, unknown> | null;
+  order?: number;
+  isActive?: boolean;
+}
+
+/** Пункт меню из CMS */
+export interface MenuItem {
+  group: 'header' | 'tech' | 'footer-services' | 'footer-company';
+  label: string;
+  href: string;
+  note?: string | null;
+  order?: number;
+  isActive?: boolean;
+}
+
 
 export interface SpecRow {
   label: string;
@@ -55,6 +110,22 @@ export interface Category {
   unit: string;
   /** В CMS категория хранится с полем «key» — тот же идентификатор */
   key?: CategoryId;
+  /** Редактируемый «краткий ответ» страницы (шаблон с подстановками) */
+  answer?: string | null;
+  /** Блок фактов: [{ label, value }] — value может быть шаблоном */
+  facts?: { label: string; value: string }[] | null;
+  /** «Что входит в стоимость»: список строк */
+  includes?: (string | { text: string })[] | null;
+  /** Сноска под списком */
+  includesNote?: string | null;
+  /** Вопросы и ответы страницы: [{ q, a }] */
+  faq?: { q: string; a: string }[] | null;
+  /** Описание для поисковой выдачи */
+  seoDescription?: string | null;
+  /** Заголовок страницы (H1) */
+  heroTitle?: string | null;
+  /** Фото категории */
+  image?: CmsImage | null;
 }
 
 export interface Equipment {
@@ -64,8 +135,6 @@ export interface Equipment {
   categoryLabel: string;
   /** URL каталога этой категории (вычисляется) */
   categorySlug?: string;
-  /** Каталог с оптимизированными картинками (вычисляется) */
-  imageDir?: string | null;
   title: string;
   /** Полное легаси-заголовок (может содержать цену) */
   titleFull: string;
@@ -79,7 +148,8 @@ export interface Equipment {
   price: Price | null;
   priceRaw: string;
   specGroups: SpecGroup[];
-  image: string | null;
+  /** Фотография из медиатеки Strapi */
+  image: CmsImage | null;
   imageAlt: string;
   description: string;
   /** Все legacy-URL этой позиции — источник 301-редиректов */
@@ -110,7 +180,9 @@ export interface CaseStudy {
   title: string;
   kW: number | null;
   bodyHtml: string;
-  image: string | null;
+  /** Фотография из медиатеки Strapi */
+  image: CmsImage | null;
+  imageAlt?: string;
   legacyUrls: string[];
 }
 

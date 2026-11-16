@@ -1,68 +1,31 @@
-import type { Equipment, PageKind } from './types';
-
 /**
- * Контент для страниц категорий: сниппет, «краткий ответ», вопросы.
+ * Контент страниц-каталогов.
  *
- * Зачем это нужно:
+ * Источник текстов — CMS: у категории есть поля «краткий ответ»,
+ * «блок фактов», «что входит в стоимость» и «вопросы и ответы».
+ * В них живые шаблоны ({price}, {count}), числа подставляются из каталога.
  *
- * SEO. Поисковик берёт сниппет из title и description, а структуру
- * страницы — из заголовков. Без h2 внутри страницы её нечем
- * различать в выдаче, а без нормального description сниппет
- * обрезается по границе слова.
- *
- * GEO (генеративная выдача: YandexGPT, ChatGPT, Perplexity, Алиса)
- * такие страницы цитируют чаще всего, если на них есть:
- *   • прямой ответ на вопрос в первых строках — «краткий ответ»;
- *   • конкретные числа (цены, диапазоны, сроки) — их любят выносить
- *     в AI-сводку;
- *   • разметка FAQPage — из неё собираются быстрые ответы;
- *   • таблицы характеристик — самый цитируемый формат (у нас
- *     они уже есть в карточках товаров).
- *
- * Все числа берутся из каталога, а не пишутся руками: при изменении
- * цен и парка текст обновится сам.
+ * Этот модуль — запасной вариант на случай, если CMS недоступна или
+ * поля не заполнены: тексты собираются из данных каталога. При штатной
+ * работе сайта запасные значения не используются — это проверяет
+ * scripts/_check-cms-coverage.mjs.
  */
+import { render, type Tokens } from '@/lib/content';
+import { catalogTokens, formatNumber, pluralize, powerRange, priceUnit, unitFor } from '@/lib/tokens';
+import type { Category, Equipment, SiteSettings } from './types';
 
 export interface CategoryFact {
-  /** Значение для блока с фактами */
   label: string;
   value: string;
 }
 
 export interface CategoryContent {
-  /** description для сниппета */
   description: string;
-  /** Короткий ответ — абзац перед каталогом */
   answer: string;
-  /** Факты списком — их любят ИИ-поисковики */
   facts: CategoryFact[];
-  /** Вопросы и ответы для блока FAQ и разметки FAQPage */
   faq: { q: string; a: string }[];
-}
-
-/** Человекочитаемое число: 12345 → «12 345» */
-const num = (n: number) => n.toLocaleString('ru-RU');
-
-/** Диапазон: [8, 800] → «от 8 до 800 кВт» */
-function range(values: number[], unit: string): string {
-  if (!values.length) return '';
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  if (min === max) return `${num(min)} ${unit}`;
-  return `от ${num(min)} до ${num(max)} ${unit}`;
-}
-
-/** Единица измерения по категории */
-function unitFor(category: string): string {
-  switch (category) {
-    case 'compressor':
-    case 'compressor-shift':
-      return 'м³/мин';
-    case 'manipulator':
-      return 'т';
-    default:
-      return 'кВт';
-  }
+  includes: string[];
+  includesNote: string;
 }
 
 /** Название категории во множественном числе — для текстов */
@@ -85,51 +48,142 @@ const SUBJECT: Record<string, string> = {
   used: 'Продажа техники б/у',
 };
 
+/** Тема строки в сниппете — без повторов внутри самой строки */
+const DESCR_SUBJECT: Record<string, string> = {
+  generator: 'Аренда дизельных генераторов',
+  pes: 'Аренда передвижных электростанций',
+  compressor: 'Аренда компрессоров',
+  'compressor-shift': 'Аренда компрессоров по сменам',
+  manipulator: 'Аренда кранов-манипуляторов',
+  used: 'Продажа дизельных генераторов б/у',
+};
+
+/** Существительное после «N видов» — тоже без повторов */
+const DESCR_NOUN: Record<string, string> = {
+  generator: 'генераторов',
+  pes: 'ПЭС',
+  compressor: 'компрессоров',
+  'compressor-shift': 'компрессоров',
+  manipulator: 'манипуляторов',
+  used: 'техники',
+};
+
+/** Единица измерения по категории */
+function unitForCategory(category: string): string {
+  return unitFor(category);
+}
+
+/**
+ * Содержимое страницы категории.
+ *
+ * @param cms    запись категории из CMS (может быть null)
+ * @param tokens подстановки из каталога
+ */
 export function categoryContent(
-  kind: PageKind,
+  kind: string,
   slug: string,
   category: string | undefined,
-  items: Equipment[]
+  items: Equipment[],
+  cms: Category | null = null,
+  settings?: SiteSettings,
+  tokens?: Tokens
 ): CategoryContent | null {
   if (kind !== 'catalog' || !category) return null;
 
+  const t: Tokens =
+    tokens ?? (settings ? catalogTokens(items, category, settings) : ({} as Tokens));
+
+  /* ── Данные каталога ── */
   const subject = SUBJECT[category] ?? 'Аренда техники';
   const plural = PLURAL[category] ?? 'техники';
-  const unit = unitFor(category);
-
-  const powers = items.map((i) => i.power).filter((v): v is number => v != null);
-  const prices = items
-    .map((i) => i.price?.value)
-    .filter((v): v is number => typeof v === 'number' && v > 0);
-  const minPrice = prices.length ? Math.min(...prices) : null;
-
+  const unit = unitForCategory(category);
   const models = items.length;
-  const brandList = [...new Set(items.map((i) => i.brand).filter(Boolean))] as string[];
+  const word = pluralize(
+    models,
+    category === 'used'
+      ? ['единица', 'единицы', 'единиц']
+      : ['вид', 'вида', 'видов']
+  );
+  const range = powerRange(items, category);
+  const pu = priceUnit(items);
+  const minPrice = String(t.minPrice || '');
+  const delivery = String(t.delivery || 'от 2 часов');
+  const brands = String(t.brands || '').split(', ').filter(Boolean);
+  const brandList = brands.length ? brands : [];
+
+  /* ── Запасные тексты (если CMS недоступна) ── */
+  const fallback = fallbackContent(category, {
+    models,
+    word,
+    plural,
+    range,
+    unit,
+    minPrice,
+    pu,
+    delivery,
+    brandList,
+  });
+
+  /* ── Из CMS — приоритет ── */
+  const answer = cms?.answer ? render(cms.answer, t) : fallback.answer;
+  const facts: CategoryFact[] = cms?.facts?.length
+    ? cms.facts.map((f) => ({ label: f.label, value: render(f.value, t) }))
+    : fallback.facts;
+  const faq = cms?.faq?.length
+    ? cms.faq.map((f) => ({ q: f.q, a: render(f.a, t) }))
+    : fallback.faq;
+  const includes = cms?.includes?.length
+    ? cms.includes.map((i) => render(typeof i === 'string' ? i : i.text, t))
+    : fallback.includes;
+  const includesNote = cms?.includesNote || fallback.includesNote;
+
+  const description = cms?.seoDescription
+    ? render(cms.seoDescription, t)
+    : fallback.description;
+
+  return { description, answer, facts, faq, includes, includesNote };
+}
+
+/** Запасной вариант: тексты собираются из данных каталога */
+function fallbackContent(
+  category: string,
+  d: {
+    models: number;
+    word: string;
+    plural: string;
+    range: string;
+    unit: string;
+    minPrice: string;
+    pu: { short: string; long: string };
+    delivery: string;
+    brandList: string[];
+  }
+) {
+  const { models, word, plural, range, unit, minPrice, pu, delivery, brandList } = d;
+  const priceSentence = minPrice ? `от ${minPrice} ₽ ${pu.long}` : 'по запросу';
 
   /* ── Продажа б/у: логика другая ── */
   if (category === 'used') {
     const facts: CategoryFact[] = [
-      { label: 'Позиций в продаже', value: num(models) },
+      { label: 'Позиций в продаже', value: String(models) },
     ];
-    if (powers.length) facts.push({ label: 'Диапазон мощности', value: range(powers, unit) });
-    if (minPrice) {
-      facts.push({ label: 'Цена за единицу', value: `от ${num(minPrice)} ₽` });
-    }
+    if (range) facts.push({ label: 'Диапазон мощности', value: range });
+    if (minPrice) facts.push({ label: 'Цена за единицу', value: `от ${minPrice} ₽` });
     facts.push({ label: 'Осмотр и выдача', value: 'база в Химках' });
     facts.push({ label: 'Документы и гарантия', value: 'предоставляются' });
 
     const answer =
-      `Продажа дизельных генераторов б/у от компании ДИЭН-Системс: ${models} ` +
-      (models === 1 ? 'единица' : 'единицы') +
-      (powers.length ? `, ${range(powers, unit)}` : '') +
-      (minPrice ? `, цена от ${num(minPrice)} ₽ за единицу` : '') +
-      '. Техника с документами и гарантией, осмотр — на базе в Химках. ' +
-      'Доставка по России обсуждается отдельно, помогаем с подбором.';
+      `${models} ${word} техники — ${range || 'мощность по запросу'}. ` +
+      (minPrice ? `Цена от ${minPrice} ₽ за единицу. ` : '') +
+      'Дизельные генераторы с отработанным ресурсом: состояние каждой единицы ' +
+      'проверяет инженер перед выставлением на продажу. Осмотр — на базе в ' +
+      'Химках, документы и гарантия в комплекте, доставка по России обсуждается ' +
+      'отдельно.';
 
     const faq: { q: string; a: string }[] = [
       {
         q: 'Какая техника есть в продаже?',
-        a: `В продаже ${models} ${plural}${powers.length ? ` мощностью ${range(powers, unit)}` : ''}. ` +
+        a: `В продаже ${models} ${word} техники${range ? ` мощностью ${range}` : ''}. ` +
           'Это дизельные генераторы с отработанным ресурсом: состояние каждой единицы ' +
           'проверяется инженером перед выставлением на продажу.',
       },
@@ -152,49 +206,51 @@ export function categoryContent(
     ];
 
     const description =
-      `Продажа дизельных генераторов б/у: ${models} ${plural}` +
-      (powers.length ? `, ${range(powers, unit)}` : '') +
-      (minPrice ? `, от ${num(minPrice)} ₽ за единицу` : '') +
+      `Продажа дизельных генераторов б/у: ${models} ${word} техники` +
+      (range ? `, ${range}` : '') +
+      (minPrice ? `, от ${minPrice} ₽ за единицу` : '') +
       '. Осмотр на базе в Химках, документы и гарантия, вывоз по Москве и МО.';
 
-    return { description, answer, facts, faq };
+    return {
+      description,
+      answer,
+      facts,
+      faq,
+      includes: [
+        'Договор купли-продажи и акт приёма-передачи',
+        'Паспорт и сервисная история станции',
+        'Гарантия на остаточный ресурс — по договорённости',
+        'Осмотр техники на базе в Химках',
+      ],
+      includesNote: '* В зависимости от состояния конкретной единицы.',
+    };
   }
 
-  /* ── Факты ── */
-  const facts: CategoryFact[] = [
-    { label: 'Моделей в парке', value: num(models) },
-  ];
-  if (powers.length) {
-    facts.push({ label: 'Диапазон мощности', value: range(powers, unit) });
-  }
+  /* ── Аренда ── */
+  const facts: CategoryFact[] = [{ label: 'Видов техники', value: String(models) }];
+  if (range) facts.push({ label: 'Диапазон мощности', value: range });
   if (minPrice) {
-    facts.push({
-      label: 'Цена аренды',
-      value: `от ${num(minPrice)} ₽${category === 'manipulator' || category === 'compressor-shift' ? ' за смену' : '/сутки'}`,
-    });
+    facts.push({ label: 'Цена аренды', value: `от ${minPrice} ₽${pu.short}` });
   }
-  facts.push({ label: 'Доставка по Москве и МО', value: 'от 2 часов' });
-  facts.push({ label: 'ТО, замена, выездная поддержка', value: 'включены в аренду' });
+  facts.push({ label: 'Доставка по Москве и МО', value: delivery });
+  facts.push({
+    label: 'ТО, замена, выездная поддержка',
+    value: 'включены в аренду *',
+  });
 
-  /* ── Краткий ответ ── */
   const answer =
-    `${subject} от компании ДИЭН-Системс: ${models} ${plural} в собственном парке` +
-    (powers.length ? `, ${range(powers, unit)}` : '') +
-    (minPrice
-      ? `, аренда от ${num(minPrice)} ₽${category === 'manipulator' || category === 'compressor-shift' ? ' за смену 8 часов' : ' в сутки'}`
-      : '') +
-    '. Доставка на объект — от 2 часов по Москве и Московской области, ТО, ' +
-    'подмена неисправной единицы и выездная поддержка 24/7 включены в стоимость. ' +
-    (brandList.length ? `Работаем с ${brandList.join(', ')}.` : '');
+    `${models} ${word} ${plural} — ${range || 'мощность по запросу'}. ` +
+    `Аренда ${priceSentence}. Доставка на объект — ${delivery} по Москве и ` +
+    'Московской области, ТО, подмена неисправной единицы и выездная поддержка ' +
+    `24/7 включены в стоимость*.${brandList.length ? ` Работаем с ${brandList.join(', ')}.` : ''}`;
 
-  /* ── Вопросы и ответы ── */
   const faq: { q: string; a: string }[] = [
     {
       q: `Сколько стоит ${plural} в аренду?`,
       a: minPrice
-        ? `Аренда ${plural} начинается от ${num(minPrice)} ₽${category === 'manipulator' || category === 'compressor-shift' ? ' за смену 8 часов' : ' в сутки'}. ` +
+        ? `Аренда ${plural} начинается от ${minPrice} ₽ ${pu.long}. ` +
           `Точная цена зависит от модели, мощности, тарифа (сухая аренда или с оператором и топливом) и срока: при оплате от 30 дней даём скидку 10%, доставка и вывоз по Москве в пределах МКАД бесплатны.`
-        : `Цену рассчитываем по модели, мощности и сроку аренды — инженер вышлёт расчёт в течение 10 минут после заявки.`,
+        : 'Цену рассчитываем по модели, мощности и сроку аренды — инженер вышлёт расчёт в течение 10 минут после заявки.',
     },
     {
       q: 'Как быстро доставят технику?',
@@ -214,14 +270,27 @@ export function categoryContent(
     },
   ];
 
-  /* ── Description для сниппета ── */
   const description =
-    `${subject} от собственника: ${models} ${plural}` +
-    (powers.length ? `, ${range(powers, unit)}` : '') +
-    (minPrice
-      ? `, от ${num(minPrice)} ₽${category === 'manipulator' || category === 'compressor-shift' ? ' за смену' : '/сутки'}`
-      : '') +
+    `${DESCR_SUBJECT[category] ?? SUBJECT[category] ?? 'Аренда техники'}: ${models} ${word} ${DESCR_NOUN[category] ?? plural}` +
+    (range ? `, ${range}` : '') +
+    (minPrice ? `, от ${minPrice} ₽${pu.short}` : '') +
     '. Доставка от 2 часов, ТО и подмена включены. Москва и МО.';
 
-  return { description, answer, facts, faq };
+  return {
+    description,
+    answer,
+    facts,
+    faq,
+    includes: [
+      'Сама станция и регламентное ТО',
+      'Ёмкость для топлива',
+      'Подключение к силовому кабелю заказчика',
+      'Обучение персонала',
+      'Резервная машина на базе и подмена при нештатной ситуации',
+      'Выездная поддержка 24/7',
+    ],
+    includesNote: '* В зависимости от тарифа.',
+  };
 }
+
+export { formatNumber };

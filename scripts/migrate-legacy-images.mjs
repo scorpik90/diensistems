@@ -7,7 +7,7 @@ import fs from 'node:fs';
  *
  * В описаниях б/у техники и в поле image остались пути вида
  * /site/images/foto/111/с300.jpg — на новом сайте их нет.
- * Скрипт скачивает эти файлы, кладёт в public/images/legacy/<n>/
+ * Скрипт скачивает эти файлы, кладёт в assets/legacy-images/legacy/<n>/
  * и переписывает пути в content/seed.json (в тексте и в поле image).
  */
 import path from 'node:path';
@@ -16,7 +16,7 @@ import sharp from 'sharp';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const PUBLIC = path.join(ROOT, 'public', 'images', 'legacy');
+const PUBLIC = path.join(ROOT, 'assets', 'legacy-images', 'legacy');
 const ORIGIN = 'https://genorg.ru';
 const UA = 'Mozilla/5.0 (compatible; genorg-migration/2.0)';
 

@@ -21,14 +21,19 @@ export default function MobileMenu({
   tech,
   phone,
   phoneRaw,
+  labels,
 }: {
   nav: { href: string; label: string }[];
-  tech?: { href: string; label: string; note?: string }[];
+  tech?: { href: string; label: string; note?: string | null }[];
   phone: string;
   phoneRaw: string;
+  /** Подписи из CMS */
+  labels?: Record<string, string>;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  const t = (key: string, fallback: string) => labels?.[key] || fallback;
 
   /* Портал можно создать только в браузере */
   useEffect(() => setMounted(true), []);
@@ -50,14 +55,14 @@ export default function MobileMenu({
         className="mnav__panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Меню сайта"
+        aria-label={t('ariaLabel', 'Меню сайта')}
       >
         <div className="mnav__head">
-          <span className="mnav__title">Меню</span>
+          <span className="mnav__title">{t('title', 'Меню')}</span>
           <button
             className="mnav__close"
             type="button"
-            aria-label="Закрыть меню"
+            aria-label={t('closeAria', 'Закрыть меню')}
             onClick={() => setOpen(false)}
           >
             <IconClose />
@@ -80,7 +85,7 @@ export default function MobileMenu({
         {tech && tech.length > 0 && (
           <>
             <p className="mnav__title" style={{ marginTop: 18 }}>
-              Другая техника и услуги
+              {t('techTitle', 'Другая техника и услуги')}
             </p>
             <ul className="mnav__list mnav__list--sub">
               {tech.map((t) => (
@@ -97,10 +102,10 @@ export default function MobileMenu({
 
         <div className="mnav__foot">
           <a className="btn btn--block" href={`tel:${phoneRaw}`}>
-            Позвонить {phone}
+            {t('callLabel', `Позвонить ${phone}`)}
           </a>
           <Link className="btn btn--outline btn--block" href="/#lead" onClick={() => setOpen(false)}>
-            Рассчитать стоимость
+            {t('calcLabel', 'Рассчитать стоимость')}
           </Link>
         </div>
       </div>
@@ -112,7 +117,7 @@ export default function MobileMenu({
       <button
         className="burger"
         type="button"
-        aria-label="Открыть меню"
+        aria-label={t('openAria', 'Открыть меню')}
         aria-expanded={open}
         aria-controls="mnav"
         data-mnav-open

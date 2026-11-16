@@ -9,7 +9,11 @@
  * Кнопка выводится всегда: право изменить решение должно быть
  * доступно независимо от того, что пользователь выбрал раньше.
  */
-export default function CookieSettingsLink() {
+export default function CookieSettingsLink({
+  label = 'Настройки cookie',
+}: {
+  label?: string;
+}) {
   const reset = () => {
     /* Сбрасываем выбор и перезагружаем — сторонние виджеты
        не должны подгружаться, пока согласия нет */
@@ -23,7 +27,7 @@ export default function CookieSettingsLink() {
 
   return (
     <button type="button" className="footer__cookie-btn" onClick={reset}>
-      Настройки cookie
+      {label}
     </button>
   );
 }

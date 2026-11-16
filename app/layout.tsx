@@ -1,31 +1,52 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { getCMS } from '@/lib/cms';
-import { jsonLd, organizationJsonLd, SITE_URL } from '@/lib/seo';
+import { getCMS, getContent } from '@/lib/cms';
+import { render } from '@/lib/content';
+import { organizationJsonLd, SITE_URL, jsonLd } from '@/lib/seo';
+import { homeTokens } from '@/lib/tokens';
 import CookieNotice from '@/components/CookieNotice';
 
 export async function generateMetadata(): Promise<Metadata> {
   const cms = getCMS();
-  const settings = await cms.getSettings();
+  const [settings, content, generators] = await Promise.all([
+    cms.getSettings(),
+    getContent(),
+    cms.getEquipmentByCategory('generator'),
+  ]);
+
+  const tokens = homeTokens(generators, settings);
+  const seo = content.o('seo.main', tokens);
+
+  /* Поля настроек сайта — шаблоны: в них тоже работают подстановки */
+  const defaultTitle = render(
+    settings.seoTitle || seo.defaultTitle || `Аренда дизельных генераторов — ${settings.company}, Москва`,
+    tokens
+  );
+  const defaultDescription = render(
+    settings.seoDescription ||
+      seo.defaultDescription ||
+      'Аренда дизельных генераторов в Москве и Московской области.',
+    tokens
+  );
+  const ogTitle = render(settings.ogTitle || seo.ogTitle || defaultTitle, tokens);
+  const ogDescription = render(settings.ogDescription || seo.ogDescription || defaultDescription, tokens);
 
   return {
     metadataBase: new URL(SITE_URL),
     title: {
-      default: `Аренда дизельных генераторов от 2 000 ₽/сутки — ${settings.company}, Москва`,
-      template: `%s — ${settings.company}`,
+      default: defaultTitle,
+      template: (seo.titleTemplate || '%s — {company}').replace('{company}', settings.company),
     },
-    description:
-      'Аренда дизельных генераторов AIRMAN, DENYO и Cummins от 2 000 ₽/сутки. Собственный парк 64 МВт, доставка от 2 часов, ТО и выездная поддержка 24/7. Москва и МО.',
+    description: defaultDescription,
     alternates: { canonical: '/' },
     openGraph: {
       type: 'website',
       locale: 'ru_RU',
       siteName: settings.company,
       url: SITE_URL,
-      title: 'Аренда дизельных генераторов от 2 000 ₽/сутки',
-      description:
-        'Собственный парк 64 МВт. Доставка от 2 часов по Москве и МО. ТО, ГРЩ, кабель и оператор включены в тарифы.',
-      images: ['/images/hero-2/1280.jpg'],
+      title: ogTitle,
+      description: ogDescription,
+      images: settings.heroImage?.url ? [settings.heroImage.url] : undefined,
     },
     twitter: { card: 'summary_large_image' },
     icons: {
@@ -46,7 +67,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const cms = getCMS();
-  const settings = await cms.getSettings();
+  const [settings, content] = await Promise.all([cms.getSettings(), getContent()]);
+
+  const skipLink = content.s('global.skipLink', 'text') || 'Перейти к основному содержанию';
 
   return (
     <html lang="ru">
@@ -59,11 +82,14 @@ export default async function RootLayout({
       </head>
       <body>
         <a className="skip-link" href="#main">
-          Перейти к основному содержанию
+          {skipLink}
         </a>
         {children}
         {/* Уведомление о cookie — показывается, пока нет согласия */}
-        <CookieNotice />
+        <CookieNotice
+          labels={content.o('cookie.main')}
+          policyUrl={settings.legalPolicyUrl}
+        />
       </body>
     </html>
   );

@@ -1,0 +1,51 @@
+{
+  "kind": "collectionType",
+  "collectionName": "menu-items",
+  "info": {
+    "singularName": "menu-item",
+    "pluralName": "menu-items",
+    "displayName": "Пункт меню",
+    "description": "Пункты навигации: верхнее меню, список техники в мега-меню, колонки подвала. Один пункт — одна строка, порядок задаётся числом."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "group": {
+      "type": "enumeration",
+      "enum": [
+        "header",
+        "tech",
+        "footer-services",
+        "footer-company"
+      ],
+      "required": true,
+      "default": "header",
+      "description": "Куда относится пункт: header — верхнее меню, tech — список техники в мега-меню, footer-services / footer-company — колонки подвала"
+    },
+    "label": {
+      "type": "string",
+      "required": true,
+      "description": "Название пункта"
+    },
+    "href": {
+      "type": "string",
+      "required": true,
+      "description": "Адрес: /arendageneratorov, /#faq и т.п."
+    },
+    "note": {
+      "type": "text",
+      "description": "Пояснение под названием (в мега-меню и мобильном меню)"
+    },
+    "order": {
+      "type": "integer",
+      "default": 0,
+      "description": "Порядок вывода"
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true,
+      "description": "Выключенный пункт не показывается"
+    }
+  }
+}

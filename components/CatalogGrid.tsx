@@ -17,12 +17,14 @@
  *   1) позиции с меткой «Хит аренды»
  *   2) позиции с меткой «Новинка»
  *   3) остальные — по возрастанию мощности
+ *
+ * Подписи (бейджи, кнопки, пустое состояние) приходят из CMS.
  */
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { money, modelsLabel } from '@/lib/format';
-import { equipmentImageDir } from '@/lib/media';
 import MediaPlaceholder from '@/components/MediaPlaceholder';
+import CmsImage from '@/components/CmsImage';
 import { sortByPriority } from '@/lib/sort';
 import {
   buildAxis,
@@ -33,14 +35,36 @@ import {
 } from '@/lib/filters';
 import type { CategoryId, Equipment } from '@/lib/types';
 
-export function Card({ item }: { item: Equipment }) {
-  const dir = equipmentImageDir(item);
+/** Подписи карточки и фильтров — из CMS */
+export interface CatalogLabels {
+  badgeHit?: string;
+  badgeNew?: string;
+  btnOrder?: string;
+  btnMore?: string;
+  /** Шаблон alt-текста; {title} — название позиции */
+  altText?: string;
+  filterBrandAria?: string;
+  filterRangeAria?: string;
+  allBrands?: string;
+  emptyTitle?: string;
+  emptyText?: string;
+  reset?: string;
+  unitSale?: string;
+  unitRent?: string;
+}
+
+export function Card({ item, labels = {} }: { item: Equipment; labels?: CatalogLabels }) {
   const isHit = item.power === 60 || item.power === 100;
   const metric = headlineMetric(item);
   /* Продажа б/у — это не аренда: заказать и рассчитать тут нечего */
   const isUsed = item.category === 'used';
   /* Три ключевые характеристики — из ТТХ позиции, а не из заглушек */
   const specs = pickSpecs(item);
+  const unit = labels.unitSale || '/шт.';
+  /* alt из CMS — если у позиции нет своего описания фото */
+  const alt =
+    item.imageAlt ||
+    (labels.altText || '{title} — аренда').replace('{title}', item.title);
 
   return (
     <article className="card">
@@ -55,27 +79,21 @@ export function Card({ item }: { item: Equipment }) {
               className={`card__tag${isHit ? ' card__tag--hot' : ''}${item.isNew && !isHit ? ' card__tag--new' : ''}`}
             >
               {isHit
-                ? 'Хит аренды'
+                ? labels.badgeHit || 'Хит аренды'
                 : item.isNew
-                  ? 'Новинка'
+                  ? labels.badgeNew || 'Новинка'
                   : metric
                     ? `${metric.value} ${metric.unit}`
                     : item.categoryLabel}
             </span>
           )}
-          {dir ? (
-            <picture>
-              <source type="image/avif" srcSet={`/images/${dir}/400.avif`} />
-              <source type="image/webp" srcSet={`/images/${dir}/400.webp`} />
-              <img
-                src={`/images/${dir}/400.jpg`}
-                alt={`${item.title} — аренда`}
-                width={400}
-                height={300}
-                loading="lazy"
-                decoding="async"
-              />
-            </picture>
+          {item.image ? (
+            <CmsImage
+              image={item.image}
+              alt={alt}
+              width={400}
+              height={300}
+            />
           ) : (
             <MediaPlaceholder kind="product" title={item.model} subtitle={item.categoryLabel} />
           )}
@@ -102,8 +120,8 @@ export function Card({ item }: { item: Equipment }) {
             <span className="card__price-val">
               {money(item.price.value)} ₽
               {/* Продажа — цена разовая, а не за сутки */}
-              {!isUsed && <small>{item.price.unit || '/сутки'}</small>}
-              {isUsed && <small>/шт.</small>}
+              {!isUsed && <small>{item.price.unit || labels.unitRent || '/сутки'}</small>}
+              {isUsed && <small>{unit}</small>}
             </span>
           </div>
         )}
@@ -112,13 +130,13 @@ export function Card({ item }: { item: Equipment }) {
           {!isUsed && (
             <Link
               className="btn btn--sm"
-              href={`/#lead?model=${encodeURIComponent(item.model)}&kw=${item.power ?? ''}`}
+              href={`/?model=${encodeURIComponent(item.model)}&kw=${item.power ?? ''}&cat=${item.category}#lead`}
             >
-              Заказать
+              {labels.btnOrder || 'Заказать'}
             </Link>
           )}
           <Link className="btn btn--outline btn--sm" href={`/${item.slug}`}>
-            Подробнее
+            {labels.btnMore || 'Подробнее'}
           </Link>
         </div>
       </div>
@@ -131,6 +149,7 @@ export default function CatalogGrid({
   limit,
   showFilters = true,
   category,
+  labels = {},
 }: {
   equipment: Equipment[];
   /** Сколько карточек показать (витрина на главной) */
@@ -138,6 +157,8 @@ export default function CatalogGrid({
   showFilters?: boolean;
   /** Категория каталога — от неё зависит ось фильтра */
   category?: CategoryId;
+  /** Подписи из CMS */
+  labels?: CatalogLabels;
 }) {
   const [rangeId, setRangeId] = useState<string | null>(null);
   const [brand, setBrand] = useState<string | null>(null);
@@ -180,12 +201,15 @@ export default function CatalogGrid({
     return limit ? list.slice(0, limit) : list;
   }, [equipment, rangeId, brand, limit, axis]);
 
+  const rangeAria = (title: string) =>
+    (labels.filterRangeAria || 'Фильтр: {title}').replace('{title}', title);
+
   return (
     <>
       {showFilters && (
         <div className="filterbar">
           {axis && axis.ranges.length > 0 && (
-            <div className="filterbar__chips" role="group" aria-label={`Фильтр: ${axis.title}`}>
+            <div className="filterbar__chips" role="group" aria-label={rangeAria(axis.title)}>
               <button
                 type="button"
                 className="chip"
@@ -209,14 +233,18 @@ export default function CatalogGrid({
           )}
 
           {brands.length > 0 && (
-            <div className="filterbar__chips" role="group" aria-label="Фильтр по бренду">
+            <div
+              className="filterbar__chips"
+              role="group"
+              aria-label={labels.filterBrandAria || 'Фильтр по бренду'}
+            >
               <button
                 type="button"
                 className="chip"
                 aria-pressed={brand === null}
                 onClick={() => setBrand(null)}
               >
-                Все бренды
+                {labels.allBrands || 'Все бренды'}
               </button>
               {brands.map(([b, n]) => (
                 <button
@@ -238,15 +266,16 @@ export default function CatalogGrid({
 
       <div className="cards">
         {shown.map((e) => (
-          <Card item={e} key={e.slug} />
+          <Card item={e} key={e.slug} labels={labels} />
         ))}
       </div>
 
       {shown.length === 0 && (
         <div className="empty">
-          <p className="empty__title">По этим условиям ничего не нашлось</p>
+          <p className="empty__title">{labels.emptyTitle || 'По этим условиям ничего не нашлось'}</p>
           <p className="empty__text">
-            Попробуйте снять фильтр по бренду или выбрать другой диапазон.
+            {labels.emptyText ||
+              'Попробуйте снять фильтр по бренду или выбрать другой диапазон.'}
           </p>
           <button
             type="button"
@@ -256,7 +285,7 @@ export default function CatalogGrid({
               setRangeId(null);
             }}
           >
-            Сбросить фильтры
+            {labels.reset || 'Сбросить фильтры'}
           </button>
         </div>
       )}

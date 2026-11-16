@@ -1,6 +1,16 @@
 import Link from 'next/link';
+import { getCMS, getContent } from '@/lib/cms';
 
-export default function NotFound() {
+/**
+ * Страница «404 — такого адреса нет».
+ *
+ * Тексты — из CMS (блок «errors.main»), телефон — из настроек сайта.
+ */
+export default async function NotFound() {
+  const cms = getCMS();
+  const [settings, content] = await Promise.all([cms.getSettings(), getContent()]);
+  const e = content.o('errors.main');
+
   return (
     <main
       id="main"
@@ -14,21 +24,20 @@ export default function NotFound() {
     >
       <div style={{ maxWidth: 520 }}>
         <p style={{ fontSize: '4rem', fontWeight: 800, color: 'var(--brand)', lineHeight: 1, margin: 0 }}>
-          404
+          {(e.code as string) || '404'}
         </p>
         <h1 style={{ fontSize: '1.75rem', margin: '16px 0 12px' }}>
-          Такой страницы нет
+          {(e.title as string) || 'Такой страницы нет'}
         </h1>
         <p style={{ color: 'var(--slate-600)', marginBottom: 24 }}>
-          Возможно, ссылка устарела. Посмотрите каталог генераторов или позвоните — поможем
-          подобрать.
+          {e.text as string}
         </p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link className="btn" href="/arendageneratorov">
-            В каталог
+            {(e.btn as string) || 'В каталог'}
           </Link>
-          <a className="btn btn--outline" href="tel:+74955405292">
-            +7 (495) 540-52-92
+          <a className="btn btn--outline" href={`tel:${settings.phoneRaw}`}>
+            {settings.phone}
           </a>
         </div>
       </div>

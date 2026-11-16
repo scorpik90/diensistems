@@ -7,7 +7,17 @@
 
 {$SITE_URL} {
 	encode gzip zstd
-	reverse_proxy web:3000
+
+	# Фотографии лежат в медиатеке CMS. Проксируем их с домена сайта:
+	# картинки отдаются с того же домена (быстрее, без cross-origin),
+	# а CMS-админка при этом остаётся на отдельном поддомене.
+	handle_path /uploads/* {
+		reverse_proxy strapi:1337
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"

@@ -16,7 +16,7 @@
  *      разрешено, чтобы картинка не мылила на retina;
  *   4) слегка подтягивает резкость и контраст (только для тёмных
  *      и выцветших снимков) и кодирует JPEG / WebP / AVIF
- *      в public/images/case/<id>/267.*.
+ *      в assets/legacy-images/case/<id>/267.*.
  *
  * Имена файлов (267.jpg / 267.webp / 267.avif) и поле image в
  * content/seed.json не меняются — ссылки в коде остаются рабочими.
@@ -28,7 +28,7 @@ import sharp from 'sharp';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const OUT = path.join(ROOT, 'public', 'images', 'case');
+const OUT = path.join(ROOT, 'assets', 'legacy-images', 'case');
 const ORIGIN = 'https://genorg.ru';
 const UA = 'Mozilla/5.0 (compatible; genorg-migration/2.0)';
 

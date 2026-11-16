@@ -41,7 +41,8 @@ const COLLECTIONS = {
     priceUnit: e.price?.unit ? e.price.unit : '/сутки',
     priceRaw: e.priceRaw,
     specGroups: e.specGroups,
-    image: e.image,
+    /* Фото — в медиатеку. Их проставляет import-content-to-cms.mjs,
+       потому что поле media принимает id файла, а не путь. */
     imageAlt: e.imageAlt,
     description: e.description,
     legacyUrls: e.legacyUrls,
@@ -67,7 +68,8 @@ const COLLECTIONS = {
     title: c.title,
     kW: c.kW,
     bodyHtml: c.bodyHtml,
-    image: c.image,
+    /* Фото — в медиатеку, см. import-content-to-cms.mjs */
+    imageAlt: c.imageAlt ?? null,
     legacyUrls: c.legacyUrls,
   }),
   pages: (p) => ({

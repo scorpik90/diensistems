@@ -243,8 +243,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   min-height: var(--header-h);
 }
 .logo { display: flex; align-items: center; gap: 11px; flex: none; }
-/* Знак компании — оригинальный логотип владельца
-   (public/images/brand/mark.*, готовится scripts/prepare-brand.mjs) */
+/* Знак компании — оригинальный логотип владельца.
+   Файл лежит в медиатеке Strapi (настройки сайта → logoMark). */
 .logo__mark {
   width: 48px; flex: none;
   display: block; line-height: 0;
@@ -1643,6 +1643,12 @@ a.contact-card:hover .contact-card__value { color: var(--brand-700); }
 }
 .answer__includes svg { width: 18px; height: 18px; color: var(--ok); flex: none; margin-top: 3px; }
 
+/* Сноска под списком: «* в зависимости от тарифа» */
+.answer__note {
+  margin: -22px 0 32px;
+  font-size: .8125rem; color: var(--slate-500);
+}
+
 /* Заголовок раздела внутри страницы */
 .section__h2 {
   font-size: clamp(1.25rem, 1.05rem + .8vw, 1.6rem);
@@ -1651,28 +1657,5 @@ a.contact-card:hover .contact-card__value { color: var(--brand-700); }
   border-bottom: 1px solid var(--slate-200);
 }
 
-/* FAQ на страницах каталогов — только под модификатором .faq--cat
-   (классы .faq__q/.faq__a заняты аккордеоном главной, где вопрос —
-   <button> с иконкой ⊕. Без префикса чеврон ::after и паддинги этого
-   блока каскадом перебивали главную: к кнопке дорисовывалась вторая
-   стрелка, а под свёрнутым ответом оставалась полоса padding-bottom). */
-.faq--cat { gap: 8px; margin: 0 0 32px; }
-.faq--cat .faq__item {
-  border: 1px solid var(--slate-200); border-radius: var(--r);
-  background: var(--card); overflow: hidden;
-}
-.faq--cat .faq__q {
-  padding: 15px 18px; cursor: pointer; list-style: none;
-  font-weight: 600; font-size: .9375rem; color: var(--ink-900);
-  position: relative; padding-right: 44px;
-}
-.faq--cat .faq__q::-webkit-details-marker { display: none; }
-.faq--cat .faq__q::after {
-  content: ''; position: absolute; right: 18px; top: 50%;
-  width: 9px; height: 9px; margin-top: -6px;
-  border-right: 2px solid var(--slate-400); border-bottom: 2px solid var(--slate-400);
-  transform: rotate(45deg); transition: transform var(--dur) var(--ease);
-}
-.faq--cat .faq__item[open] .faq__q::after { transform: rotate(-135deg); margin-top: -2px; }
-.faq--cat .faq__a { padding: 0 18px 16px; max-height: none; }
-.faq--cat .faq__a p { margin: 0; font-size: .9375rem; color: var(--slate-600); max-width: 78ch; }
+/* FAQ на страницах каталогов использует тот же компонент и те же
+   классы, что на главной, — свои стили здесь ломали бы его. */

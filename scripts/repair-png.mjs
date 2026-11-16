@@ -135,7 +135,7 @@ if (isMain) {
   /* Файл 95/hino700.png на боевом сайте повреждён (битый IDAT).
      Те же фотографии лежат в других папках каталога — берём оттуда. */
   const TARGETS = [
-    { files: ['31/hino700.png', '93/hino700.png'], dir: 'public/images/eq/21' },
+    { files: ['31/hino700.png', '93/hino700.png'], dir: 'assets/legacy-images/eq/21' },
   ];
 
   for (const t of TARGETS) {

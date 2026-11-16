@@ -68,7 +68,7 @@ export function productJsonLd(item: Equipment, settings: SiteSettings) {
     sku: item.slug,
     category: item.categoryLabel,
     brand: { '@type': 'Brand', name: item.model.split(' ')[0] },
-    image: item.imageDir ? abs(`/images/${item.imageDir}/800.jpg`) : undefined,
+    image: item.image?.url ? abs(item.image.url) : undefined,
     offers: item.price
       ? {
           '@type': 'Offer',

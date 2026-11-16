@@ -18,7 +18,7 @@ export default function MegaMenu({
 }: {
   label: string;
   href: string;
-  items: { href: string; label: string; note?: string }[];
+  items: { href: string; label: string; note?: string | null }[];
   active?: string;
 }) {
   const [open, setOpen] = useState(false);

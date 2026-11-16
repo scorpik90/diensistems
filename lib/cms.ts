@@ -13,13 +13,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { cache } from 'react';
 import seed from '@/content/seed.json';
-import { equipmentImageDir } from '@/lib/media';
+import { Content } from '@/lib/content';
 import type {
   Article,
   CaseStudy,
   Category,
   CategoryId,
+  CmsImage,
+  ContentBlock,
   Equipment,
+  MenuItem,
   PriceTable,
   Review,
   Seed,
@@ -43,6 +46,52 @@ export interface CMSProvider {
   getPage(slug: string): Promise<StaticPage | null>;
   getPriceTables(): Promise<PriceTable[]>;
   getRedirects(): Promise<Record<string, string>>;
+  /** Редактируемые текстовые блоки */
+  getContentBlocks(): Promise<ContentBlock[]>;
+  /** Пункты меню */
+  getMenuItems(): Promise<MenuItem[]>;
+  /** Готовый объект доступа к контенту (CMS + запасной снимок) */
+  getContent(): Promise<Content>;
+}
+
+/**
+ * Приведение медиатеки Strapi к общей модели изображения.
+ *
+ * В Strapi 5 поле media — это массив объектов; url относительный
+ * («/uploads/x.jpg»), поэтому к нему подставляется адрес CMS.
+ *
+ * Фотографии лежат только в CMS. Если CMS недоступна, изображений
+ * просто нет — компонент рисует аккуратную заглушку, а не битую
+ * картинку со ссылкой на несуществующий файл.
+ */
+export function toImage(raw: unknown, baseUrl = ''): CmsImage | null {
+  if (!raw) return null;
+
+  const first = Array.isArray(raw) ? raw[0] : raw;
+  if (!first || typeof first !== 'object') return null;
+  const m = first as Record<string, unknown>;
+  const url = typeof m.url === 'string' ? m.url : null;
+  if (!url) return null;
+
+  /* В Strapi url относительный («/uploads/x.jpg») — добавляем адрес CMS.
+     То же и для производных размеров, иначе браузер ищет их
+     на домене сайта, а не CMS. */
+  const abs = (u: string) => (u.startsWith('http') ? u : `${baseUrl}${u}`);
+  const rawFormats = (m.formats ?? {}) as Record<string, { url?: string; width?: number; height?: number }>;
+  const formats: CmsImage['formats'] = {};
+  for (const [key, f] of Object.entries(rawFormats)) {
+    if (f?.url) {
+      formats[key] = { url: abs(f.url), width: Number(f.width ?? 0), height: Number(f.height ?? 0) };
+    }
+  }
+
+  return {
+    url: abs(url),
+    width: Number(m.width ?? 0),
+    height: Number(m.height ?? 0),
+    alternativeText: (m.alternativeText as string | null) ?? null,
+    formats,
+  };
 }
 
 /**
@@ -54,7 +103,11 @@ export interface CMSProvider {
  *
  * Также вычисляются производные поля: URL категории и папка с картинками.
  */
-function decorate(raw: Equipment & { priceValue?: number; priceUnit?: string }, categories: Category[]): Equipment {
+function decorate(
+  raw: Equipment & { priceValue?: number; priceUnit?: string },
+  categories: Category[],
+  mediaBase = ''
+): Equipment {
   const price =
     raw.price ??
     (raw.priceValue != null ? { value: raw.priceValue, unit: raw.priceUnit || '/сутки' } : null);
@@ -65,9 +118,8 @@ function decorate(raw: Equipment & { priceValue?: number; priceUnit?: string }, 
     ...raw,
     price,
     categorySlug: cat?.slug,
-    /* Папка с оптимизированной картинкой позиции.
-       Логика одна на все страницы — в lib/media.ts. */
-    imageDir: equipmentImageDir(raw as Equipment),
+    /* Фото — из медиатеки Strapi */
+    image: toImage(raw.image, mediaBase),
   };
 }
 
@@ -83,9 +135,6 @@ class MockCMS implements CMSProvider {
 
   /** Кэш прочитанного с диска файла — перечитывается при изменении mtime */
   private disk: { data: Seed; mtime: number } | null = null;
-
-  /** Кэш content/reviews.json (аналогично — по mtime) */
-  private reviewsFile: { data: Review[]; mtime: number } | null = null;
 
   /**
    * В mock-режиме данные читаются с диска, а не из бандла.
@@ -129,10 +178,14 @@ class MockCMS implements CMSProvider {
   async getArticles() {
     return this.data().articles;
   }
+  /** Кэш content/reviews.json (по mtime — как и seed.json) */
+  private reviewsFile: { data: Review[]; mtime: number } | null = null;
+
   async getReviews() {
     /* В seed.json поле reviews пустое — реальные отзывы с Яндекс.Карт
        пишет в content/reviews.json скрипт fetch-yandex-reviews.mjs
-       (формат: { all: Review[] }). Читаем оттуда, seed — как запасной источник. */
+       (формат: { all: Review[] }). Читаем оттуда, seed — как запасной
+       источник. */
     return this.reviewsData().sort((a, b) => b.rating - a.rating || b.date.localeCompare(a.date));
   }
 
@@ -171,6 +224,33 @@ class MockCMS implements CMSProvider {
   }
   async getRedirects() {
     return this.data().redirects;
+  }
+
+  /** В mock-режиме блоков в CMS нет — берём из запасного снимка */
+  async getContentBlocks(): Promise<ContentBlock[]> {
+    return [];
+  }
+
+  async getMenuItems(): Promise<MenuItem[]> {
+    return [];
+  }
+
+  async getContent(): Promise<Content> {
+    const c = new Content([], []);
+    const cats: Record<string, Record<string, unknown>> = {};
+    for (const cat of this.data().categories) {
+      cats[cat.id] = {
+        answer: null,
+        facts: null,
+        includes: null,
+        includesNote: null,
+        faq: null,
+        seoDescription: null,
+        heroTitle: null,
+      };
+    }
+    c.setCategories(cats);
+    return c;
   }
 }
 
@@ -214,24 +294,46 @@ class StrapiCMS implements CMSProvider {
     return list[0] ?? null;
   }
 
+  /**
+   * Адрес CMS без /api — к нему приклеиваются относительные url медиатеки.
+   *
+   * Для ссылок в вёрстке нужен ПУБЛИЧНЫЙ адрес (CMS_PUBLIC_URL):
+   * внутри контейнеров CMS доступна по http://strapi:1337, а браузер
+   * посетителя такой адрес не откроет.
+   */
+  private get mediaBase(): string {
+    const pub = process.env.CMS_PUBLIC_URL;
+    if (pub) return pub.replace(/\/$/, '');
+    return this.base.replace(/\/api$/, '');
+  }
+
   async getSettings() {
-    const s = await this.one<SiteSettings>('/site-settings?pagination[pageSize]=1');
+    const s = await this.one<SiteSettings>('/site-settings?pagination[pageSize]=1&populate=*');
     if (!s) throw new Error('Strapi: нет записи site-settings');
-    return s;
+    return {
+      ...s,
+      logo: toImage(s.logo, this.mediaBase),
+      logoMark: toImage(s.logoMark, this.mediaBase),
+      heroImage: toImage(s.heroImage, this.mediaBase),
+    };
   }
 
   async getCategories() {
-    const list = await this.fetchList<Category>('/categories?sort=key:asc');
+    const list = await this.fetchList<Category>('/categories?sort=key:asc&populate=*');
     /* В Strapi категория хранится с полем «key», а в модели id.
        Приводим к общему виду — иначе не работает связь
        «позиция → её категория» (и, как следствие, хлебные крошки). */
-    return list.map((c) => ({ ...c, id: (c.key ?? c.id) as CategoryId }));
+    return list.map((c) => ({
+      ...c,
+      id: (c.key ?? c.id) as CategoryId,
+      image: toImage(c.image, this.mediaBase),
+    }));
   }
 
   private async equipment(): Promise<Equipment[]> {
     const categories = await this.getCategories();
-    const list = await this.fetchList<Equipment>('/equipment?pagination[pageSize]=200');
-    return list.map((e) => decorate(e, categories));
+    const list = await this.fetchList<Equipment>('/equipment?pagination[pageSize]=200&populate=*');
+    return list.map((e) => decorate(e, categories, this.mediaBase));
   }
 
   async getEquipment() {
@@ -244,10 +346,12 @@ class StrapiCMS implements CMSProvider {
 
   async getEquipmentBySlug(slug: string) {
     const categories = await this.getCategories();
+    /* populate обязателен: без него медиатека не приходит и
+       позиция остаётся без фотографии. */
     const found = await this.one<Equipment>(
-      `/equipment?filters[slug][$eq]=${encodeURIComponent(slug)}&pagination[pageSize]=1`
+      `/equipment?filters[slug][$eq]=${encodeURIComponent(slug)}&pagination[pageSize]=1&populate=*`
     );
-    return found ? decorate(found, categories) : null;
+    return found ? decorate(found, categories, this.mediaBase) : null;
   }
 
   async getArticles() {
@@ -266,13 +370,15 @@ class StrapiCMS implements CMSProvider {
   }
 
   async getCases() {
-    return this.fetchList<CaseStudy>('/cases?sort=title:asc');
+    const list = await this.fetchList<CaseStudy>('/cases?sort=title:asc&populate=*');
+    return list.map((c) => ({ ...c, image: toImage(c.image, this.mediaBase) }));
   }
 
   async getCase(slug: string) {
-    return this.one<CaseStudy>(
-      `/cases?filters[slug][$eq]=${encodeURIComponent(slug)}&pagination[pageSize]=1`
+    const found = await this.one<CaseStudy>(
+      `/cases?filters[slug][$eq]=${encodeURIComponent(slug)}&pagination[pageSize]=1&populate=*`
     );
+    return found ? { ...found, image: toImage(found.image, this.mediaBase) } : null;
   }
 
   async getPages() {
@@ -293,15 +399,132 @@ class StrapiCMS implements CMSProvider {
     const list = await this.fetchList<{ from: string; to: string }>('/redirects');
     return Object.fromEntries(list.map((e) => [e.from, e.to]));
   }
+
+  /* ── Редактируемый контент ────────────────────────────────────────── */
+
+  async getContentBlocks(): Promise<ContentBlock[]> {
+    const list = await this.fetchList<ContentBlock>('/content-blocks?sort=order:asc');
+    return list.filter((b) => b.isActive !== false);
+  }
+
+  async getMenuItems(): Promise<MenuItem[]> {
+    const list = await this.fetchList<MenuItem>('/menu-items?sort=order:asc');
+    return list.filter((m) => m.isActive !== false);
+  }
+
+  async getContent(): Promise<Content> {
+    const [blocks, menu, categories] = await Promise.all([
+      this.getContentBlocks(),
+      this.getMenuItems(),
+      this.getCategories(),
+    ]);
+    const content = new Content(blocks, menu);
+    const cats: Record<string, Record<string, unknown>> = {};
+    for (const c of categories) {
+      cats[c.id] = {
+        answer: c.answer ?? null,
+        facts: c.facts ?? null,
+        includes: c.includes ?? null,
+        includesNote: c.includesNote ?? null,
+        faq: c.faq ?? null,
+        seoDescription: c.seoDescription ?? null,
+        heroTitle: c.heroTitle ?? null,
+      };
+    }
+    content.setCategories(cats);
+    return content;
+  }
 }
 
-/* ─── Кэш запросов ──────────────────────────────────────────────────── */
+/* ─── Аварийное переключение ────────────────────────────────────────── */
+
+/**
+ * CMS с запасным вариантом.
+ *
+ * Если Strapi недоступна (нет сети, CMS перезапускается, миграция),
+ * сайт продолжает работать на локальном снимке content/seed.json
+ * и content/cms-content.json. Это не «источник правды» — он нужен,
+ * чтобы страница не отдавала 500 из-за недоступности CMS.
+ */
+class ResilientCMS implements CMSProvider {
+  name = 'strapi+fallback';
+
+  constructor(
+    private primary: CMSProvider,
+    private backup: CMSProvider
+  ) {}
+
+  private async pick<T>(name: string, fn: (c: CMSProvider) => Promise<T>): Promise<T> {
+    try {
+      return await fn(this.primary);
+    } catch (e) {
+      console.error(
+        `[cms] ${name}: Strapi недоступна (${(e as Error).message}) — работает запасной снимок`
+      );
+      return fn(this.backup);
+    }
+  }
+
+  getSettings() {
+    return this.pick('getSettings', (c) => c.getSettings());
+  }
+  getCategories() {
+    return this.pick('getCategories', (c) => c.getCategories());
+  }
+  getEquipment() {
+    return this.pick('getEquipment', (c) => c.getEquipment());
+  }
+  getEquipmentByCategory(category: CategoryId) {
+    return this.pick('getEquipmentByCategory', (c) => c.getEquipmentByCategory(category));
+  }
+  getEquipmentBySlug(slug: string) {
+    return this.pick('getEquipmentBySlug', (c) => c.getEquipmentBySlug(slug));
+  }
+  getArticles() {
+    return this.pick('getArticles', (c) => c.getArticles());
+  }
+  getReviews() {
+    return this.pick('getReviews', (c) => c.getReviews());
+  }
+  getArticle(slug: string) {
+    return this.pick('getArticle', (c) => c.getArticle(slug));
+  }
+  getCases() {
+    return this.pick('getCases', (c) => c.getCases());
+  }
+  getCase(slug: string) {
+    return this.pick('getCase', (c) => c.getCase(slug));
+  }
+  getPages() {
+    return this.pick('getPages', (c) => c.getPages());
+  }
+  getPage(slug: string) {
+    return this.pick('getPage', (c) => c.getPage(slug));
+  }
+  getPriceTables() {
+    return this.pick('getPriceTables', (c) => c.getPriceTables());
+  }
+  getRedirects() {
+    return this.pick('getRedirects', (c) => c.getRedirects());
+  }
+  getContentBlocks() {
+    return this.pick('getContentBlocks', (c) => c.getContentBlocks());
+  }
+  getMenuItems() {
+    return this.pick('getMenuItems', (c) => c.getMenuItems());
+  }
+  async getContent(): Promise<Content> {
+    return this.pick('getContent', (c) => c.getContent());
+  }
+}
+
+/* ─── Фабрика ────────────────────────────────────────────────────────── */
 
 /**
  * Оборачивает методы провайдера в React cache().
  *
  * Один рендер страницы вызывает getCMS() из layout, generateMetadata
- * и самого компонента — без memoisation каждая точка ходила бы в CMS
+ * и самого компонента — без мемоизации каждая точка ходила бы в CMS
  * отдельно (2–4 лишних HTTP-запроса к Strapi на каждый рендер).
  * cache() мемоизирует вызовы в рамках одного запроса; между запросами
  * кэш не переживает — свежесть данных регулируют revalidate страницы
@@ -313,7 +536,9 @@ function withRequestCache(provider: CMSProvider): CMSProvider {
     getSettings: cache(() => provider.getSettings()),
     getCategories: cache(() => provider.getCategories()),
     getEquipment: cache(() => provider.getEquipment()),
-    getEquipmentByCategory: cache((category: CategoryId) => provider.getEquipmentByCategory(category)),
+    getEquipmentByCategory: cache((category: CategoryId) =>
+      provider.getEquipmentByCategory(category)
+    ),
     getEquipmentBySlug: cache((slug: string) => provider.getEquipmentBySlug(slug)),
     getArticles: cache(() => provider.getArticles()),
     getReviews: cache(() => provider.getReviews()),
@@ -324,10 +549,11 @@ function withRequestCache(provider: CMSProvider): CMSProvider {
     getPage: cache((slug: string) => provider.getPage(slug)),
     getPriceTables: cache(() => provider.getPriceTables()),
     getRedirects: cache(() => provider.getRedirects()),
+    getContentBlocks: cache(() => provider.getContentBlocks()),
+    getMenuItems: cache(() => provider.getMenuItems()),
+    getContent: cache(() => provider.getContent()),
   };
 }
-
-/* ─── Фабрика ────────────────────────────────────────────────────────── */
 
 let instance: CMSProvider | null = null;
 
@@ -336,17 +562,30 @@ export function getCMS(): CMSProvider {
 
   const provider = process.env.CMS_PROVIDER ?? 'mock';
 
-  const base =
-    provider === 'strapi'
-      ? new StrapiCMS(
-          process.env.STRAPI_URL ?? 'http://localhost:1337',
+  if (provider === 'strapi') {
+    instance = withRequestCache(
+      new ResilientCMS(
+        new StrapiCMS(
+          process.env.STRAPI_URL ?? 'http://127.0.0.1:1337',
           process.env.STRAPI_TOKEN ?? ''
-        )
-      : new MockCMS();
+        ),
+        new MockCMS()
+      )
+    );
+  } else {
+    instance = withRequestCache(new MockCMS());
+  }
 
-  instance = withRequestCache(base);
   return instance;
 }
+
+/**
+ * Редактируемый контент (текстовые блоки и меню).
+ *
+ * React.cache убирает повторные запросы к CMS в рамках одного рендера:
+ * и страница, и layout получают один и тот же объект.
+ */
+export const getContent = cache(async () => getCMS().getContent());
 
 /* ─── Производные выборки ───────────────────────────────────────────── */
 

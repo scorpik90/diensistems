@@ -8,7 +8,14 @@
     "start": "next start -p 3100",
     "lint": "next lint",
     "migrate": "node scripts/migrate-to-cms.mjs",
-    "verify": "node scripts/verify-crawl.mjs"
+    "verify": "node scripts/verify-crawl.mjs",
+    "import:content": "node scripts/import-content-to-cms.mjs",
+    "import:body-images": "node scripts/import-body-images.mjs",
+    "repair:body-images": "node scripts/repair-body-images.mjs",
+    "check:cms": "node scripts/_check-cms-coverage.mjs",
+    "check:placeholders": "node scripts/_check-placeholders.mjs",
+    "check:images": "node scripts/check-images.mjs",
+    "check:all": "npm run check:cms && npm run check:placeholders && npm run check:images"
   },
   "dependencies": {
     "next": "^15.5.29",

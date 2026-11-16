@@ -44,9 +44,11 @@ export function stripHtml(html: string): string {
 
 /**
  * Уточняющие хвосты для служебных страниц.
- * Ключ — slug страницы, значение — что добавить к заголовку.
+ *
+ * Основной источник — CMS (блок «seo.main» → hints). Здесь лежит
+ * запасной вариант на случай, если CMS недоступна.
  */
-const TITLE_HINTS: Record<string, string> = {
+const TITLE_HINTS_FALLBACK: Record<string, string> = {
   contacts: 'Контакты, адрес базы и график работы',
   nashiobekty: 'Объекты, где работали наши генераторы',
   poleznoe: 'Статьи о выборе и обслуживании техники',
@@ -62,14 +64,22 @@ const TITLE_HINTS: Record<string, string> = {
   arendamanipulatora: 'Манипуляторы 3–9 тонн',
 };
 
+/** Уточняющие хвосты: из CMS, иначе — запасной вариант */
+export function titleHints(hints?: Record<string, string> | null): Record<string, string> {
+  return { ...TITLE_HINTS_FALLBACK, ...(hints ?? {}) };
+}
+
 /**
  * Заголовок страницы.
  *
  * Короткий заголовок дополняем уточнением, длинный — обрезаем.
  */
-export function pageTitle(page: Pick<StaticPage, 'slug' | 'title'>): string {
+export function pageTitle(
+  page: Pick<StaticPage, 'slug' | 'title'>,
+  hints?: Record<string, string> | null
+): string {
   const title = page.title.trim();
-  const hint = TITLE_HINTS[page.slug];
+  const hint = titleHints(hints)[page.slug];
 
   if (title.length < 45 && hint) {
     const full = `${title}: ${hint}`;
@@ -86,9 +96,10 @@ export function pageTitle(page: Pick<StaticPage, 'slug' | 'title'>): string {
  */
 export function pageDescription(
   page: Pick<StaticPage, 'slug' | 'title' | 'excerpt' | 'bodyHtml'>,
-  fallback?: string
+  hints?: Record<string, string> | null,
+  tail = '. Доставка от 2 часов, ТО и подмена включены. Москва и МО.'
 ): string {
-  const hint = TITLE_HINTS[page.slug];
+  const hint = titleHints(hints)[page.slug];
   const excerpt = stripHtml(page.excerpt ?? '');
 
   /* Описание из CMS — если оно осмысленное */
@@ -96,7 +107,7 @@ export function pageDescription(
 
   /* Собираем из заголовка и уточнения */
   if (hint) {
-    const full = `${page.title.trim()}: ${hint}. Доставка от 2 часов, ТО и подмена включены. Москва и МО.`;
+    const full = `${page.title.trim()}: ${hint}${tail}`;
     if (full.length <= 175) return full;
   }
 
@@ -108,5 +119,5 @@ export function pageDescription(
     return (lastSpace > 100 ? cut.slice(0, lastSpace) : cut).replace(/[,;:\-–—\s]+$/, '') + '…';
   }
 
-  return fallback ?? excerpt ?? page.title;
+  return excerpt || page.title;
 }

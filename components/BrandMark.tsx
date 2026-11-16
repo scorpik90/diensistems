@@ -5,28 +5,22 @@
  * (шестерня с «Д»), подготовленный скриптом scripts/prepare-brand.mjs:
  * белый фон убран, лишние поля обрезаны, отрисованы в PNG/WebP/AVIF.
  *
- * Оригинал: i.webp → public/images/brand/mark.*
+ * Сам файл лежит в медиатеке Strapi — приходит в поле logoMark
+ * настроек сайта.
  */
+import CmsImage from './CmsImage';
+import type { CmsImage as CmsImageType } from '@/lib/types';
+
 export default function BrandMark({
+  image,
   className,
   width = 48,
   height = 44,
 }: {
+  image?: CmsImageType | null;
   className?: string;
   width?: number;
   height?: number;
 }) {
-  return (
-    <picture className={className}>
-      <source type="image/avif" srcSet="/images/brand/mark.avif" />
-      <source type="image/webp" srcSet="/images/brand/mark.webp" />
-      <img
-        src="/images/brand/mark.png"
-        alt=""
-        width={width}
-        height={height}
-        decoding="async"
-      />
-    </picture>
-  );
+  return <CmsImage image={image} alt="" width={width} height={height} className={className} />;
 }

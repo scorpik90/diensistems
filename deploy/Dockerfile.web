@@ -17,8 +17,11 @@ COPY . .
 # ни в слои, ни в `docker history`.
 ARG CMS_PROVIDER=strapi
 ARG STRAPI_URL=http://strapi:1337
+ARG CMS_PUBLIC_URL
 ENV CMS_PROVIDER=${CMS_PROVIDER}
 ENV STRAPI_URL=${STRAPI_URL}
+# Ссылка на фотографии в собранной вёрстке — публичный адрес CMS
+ENV CMS_PUBLIC_URL=${CMS_PUBLIC_URL}
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN --mount=type=secret,id=strapi_token \
     STRAPI_TOKEN="$(cat /run/secrets/strapi_token 2>/dev/null || true)" npm run build

@@ -87,8 +87,12 @@
       "description": "ТТХ: [{ group, rows: [{ label, value }] }]"
     },
     "image": {
-      "type": "string",
-      "description": "Путь к файлу в медиатеке Strapi"
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ],
+      "description": "Фотография позиции — в медиатеке Strapi"
     },
     "imageAlt": {
       "type": "string",

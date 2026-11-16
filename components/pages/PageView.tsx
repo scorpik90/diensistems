@@ -4,12 +4,16 @@ import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import { IconArrow, IconCheck } from '@/components/icons';
 import MediaPlaceholder from '@/components/MediaPlaceholder';
+import CmsImage from '@/components/CmsImage';
 import CatalogGrid from '@/components/CatalogGrid';
+import Faq from '@/components/Faq';
 import PriceTableView from '@/components/pages/PriceTableView';
-import { CASE_IMAGE_WIDTH, caseImageDir, equipmentImageDir } from '@/lib/media';
 import { categoryContent } from '@/lib/category-content';
-import { jsonLd, SITE_URL } from '@/lib/seo';
 import { sanitizeHtml } from '@/lib/sanitize';
+import { withCmsMedia } from '@/lib/media';
+import { catalogTokens } from '@/lib/tokens';
+import { SITE_URL, jsonLd } from '@/lib/seo';
+import type { Content } from '@/lib/content';
 import type { SiteSettings, StaticPage } from '@/lib/types';
 
 /**
@@ -19,52 +23,80 @@ import type { SiteSettings, StaticPage } from '@/lib/types';
  *   kind 'cases'    → индекс кейсов
  *   kind 'articles' → индекс статей
  *   kind 'static'   → текст
+ *
+ * Все подписи приходят из CMS (коллекция «Текстовый блок»).
  */
 export default async function PageView({
   page,
   settings,
+  content,
 }: {
   page: StaticPage;
   settings: SiteSettings;
+  content: Content;
 }) {
   const cms = getCMS();
   const items = page.category ? await cms.getEquipmentByCategory(page.category) : [];
   const priceTables = page.kind === 'price' ? await cms.getPriceTables() : [];
   const cases = page.kind === 'cases' ? await cms.getCases() : [];
   const articles = page.kind === 'articles' ? await cms.getArticles() : [];
+  const categories = await cms.getCategories();
+
+  /* Подстановки: числа берутся из каталога этой категории */
+  const tokens = page.category
+    ? catalogTokens(items, page.category, settings)
+    : catalogTokens([], 'generator', settings);
 
   /* Контент для SEO/GEO: краткий ответ, факты, вопросы */
-  const cat = categoryContent(page.kind, page.slug, page.category, items);
+  const cat = categoryContent(
+    page.kind,
+    page.slug,
+    page.category,
+    items,
+    categories.find((c) => c.id === page.category) ?? null,
+    settings,
+    tokens
+  );
+
+  const b = content.o('catalog.main', tokens);
+  const card = content.o('catalog.card', tokens);
+  const casesLabels = content.o('cases.main', tokens);
+  const articlesLabels = content.o('articles.main', tokens);
+  const crumbHome = content.s('global.breadcrumbHome', 'text', tokens) || 'Главная';
+
+  const eyebrow =
+    page.kind === 'catalog'
+      ? b.eyebrowCatalog
+      : page.kind === 'price'
+        ? b.eyebrowPrice
+        : page.kind === 'cases'
+          ? b.eyebrowCases
+          : page.kind === 'articles'
+            ? b.eyebrowArticles
+            : b.eyebrowStatic;
 
   return (
     <>
-      <SiteHeader settings={settings} active={page.slug} />
+      <SiteHeader settings={settings} content={content} tokens={tokens} active={page.slug} />
 
       <main id="main">
         <section className="section section--tight">
           <div className="container">
             <nav aria-label="Хлебные крошки">
               <ul className="crumbs">
-                <li><Link href="/">Главная</Link></li>
+                <li><Link href="/">{crumbHome}</Link></li>
                 <li aria-hidden="true">/</li>
                 <li aria-current="page">{page.title}</li>
               </ul>
             </nav>
 
             <div className="head">
-              <span className="head__eyebrow">
-                {page.kind === 'catalog'
-                  ? 'Каталог'
-                  : page.kind === 'price'
-                    ? 'Прайс-лист'
-                    : page.kind === 'cases'
-                      ? 'Объекты'
-                      : page.kind === 'articles'
-                        ? 'База знаний'
-                        : 'Раздел'}
-              </span>
+              <span className="head__eyebrow">{eyebrow}</span>
               <h1 style={{ fontSize: 'clamp(1.75rem, 1.2rem + 2vw, 2.75rem)' }}>{page.title}</h1>
-              {page.excerpt && <p>{page.excerpt}</p>}
+              {/* На страницах каталогов текст из legacy-описания повторял
+                  то, что уже сказано в блоке «краткий ответ» ниже,
+                  поэтому здесь он не выводится. */}
+              {page.excerpt && page.kind !== 'catalog' && <p>{page.excerpt}</p>}
             </div>
 
             {/* ─── Каталог ─── */}
@@ -88,41 +120,48 @@ export default async function PageView({
                   </div>
                 )}
 
-                <h2 className="section__h2">Каталог моделей</h2>
-                <CatalogGrid equipment={items} category={page.category} />
+                <h2 className="section__h2">{b.h2Models}</h2>
+                <CatalogGrid
+                  equipment={items}
+                  category={page.category}
+                  labels={{
+                    badgeHit: card.badgeHit as string,
+                    badgeNew: card.badgeNew as string,
+                    btnOrder: card.btnOrder as string,
+                    btnMore: card.btnMore as string,
+                    filterBrandAria: card.filterBrandAria as string,
+                    filterRangeAria: card.filterRangeAria as string,
+                    allBrands: card.allBrands as string,
+                    emptyTitle: card.emptyTitle as string,
+                    emptyText: card.emptyText as string,
+                    reset: card.reset as string,
+                  }}
+                />
 
-                {/* Что входит в аренду — с конкретикой по условиям */}
-                <h2 className="section__h2">Что входит в стоимость</h2>
-                <ul className="answer__includes">
-                  {[
-                    'Сама станция и регламентное ТО',
-                    'Ёмкость для топлива',
-                    'Подключение к силовому кабелю заказчика',
-                    'Обучение персонала',
-                    'Резервная машина на базе и подмена при нештатной ситуации',
-                    'Выездная поддержка 24/7',
-                  ].map((t) => (
-                    <li key={t}>
-                      <IconCheck />
-                      {t}
-                    </li>
-                  ))}
-                </ul>
+                {/* Что входит в аренду — с конкретикой по условиям.
+                    Состав зависит от тарифа, о чём и говорит сноска. */}
+                {cat && cat.includes.length > 0 && (
+                  <>
+                    <h2 className="section__h2">{b.h2Includes}</h2>
+                    <ul className="answer__includes">
+                      {cat.includes.map((t) => (
+                        <li key={t}>
+                          <IconCheck />
+                          {t}
+                        </li>
+                      ))}
+                    </ul>
+                    {cat.includesNote && <p className="answer__note">{cat.includesNote}</p>}
+                  </>
+                )}
 
-                {/* Частые вопросы — источник быстрых ответов */}
+                {/* Частые вопросы — источник быстрых ответов.
+                    Используем тот же аккордеон, что на главной:
+                    свои стили сломали бы его оформление. */}
                 {cat && cat.faq.length > 0 && (
                   <>
-                    <h2 className="section__h2">Частые вопросы</h2>
-                    <div className="faq faq--cat">
-                      {cat.faq.map((f) => (
-                        <details className="faq__item" key={f.q}>
-                          <summary className="faq__q">{f.q}</summary>
-                          <div className="faq__a">
-                            <p>{f.a}</p>
-                          </div>
-                        </details>
-                      ))}
-                    </div>
+                    <h2 className="section__h2">{b.h2Faq as string}</h2>
+                    <Faq items={cat.faq} />
                   </>
                 )}
               </>
@@ -131,7 +170,7 @@ export default async function PageView({
             {/* ─── Прайс-лист ─── */}
             {page.kind === 'price' && (
               <>
-                <h2 className="section__h2">Цены на аренду техники</h2>
+                <h2 className="section__h2">{b.h2Prices}</h2>
                 {priceTables.map((t) => (
                   <PriceTableView table={t} key={t.index} />
                 ))}
@@ -141,28 +180,25 @@ export default async function PageView({
             {/* ─── Кейсы ─── */}
             {page.kind === 'cases' && (
               <>
-                <h2 className="section__h2">Объекты и выполненные работы</h2>
+                <h2 className="section__h2">{b.h2Cases}</h2>
                 <div className="cases">
                 {cases.map((c) => {
-                  const dir = caseImageDir(c);
                   return (
                   <Link className="case" href={`/${c.slug}`} key={c.slug}>
                     <div className="case__media">
-                      {dir ? (
-                        <picture>
-                          <source type="image/avif" srcSet={`/images/${dir}/${CASE_IMAGE_WIDTH}.avif`} />
-                          <source type="image/webp" srcSet={`/images/${dir}/${CASE_IMAGE_WIDTH}.webp`} />
-                          <img
-                            src={`/images/${dir}/${CASE_IMAGE_WIDTH}.jpg`}
-                            alt={c.title}
-                            width={CASE_IMAGE_WIDTH}
-                            height={200}
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        </picture>
+                      {c.image ? (
+                        <CmsImage
+                          image={c.image}
+                          alt={c.imageAlt || c.title}
+                          width={400}
+                          height={300}
+                        />
                       ) : (
-                        <MediaPlaceholder kind="case" title={c.title} subtitle="Фото объекта нет" />
+                        <MediaPlaceholder
+                          kind="case"
+                          title={c.title}
+                          subtitle={casesLabels.placeholder as string}
+                        />
                       )}
                     </div>
                     <div className="case__overlay" />
@@ -170,7 +206,7 @@ export default async function PageView({
                       {c.kW && <span className="case__meta">{c.kW} кВт</span>}
                       <h3 className="case__title">{c.title}</h3>
                       <span className="case__link">
-                        Смотреть объект
+                        {casesLabels.cta as string}
                         <IconArrow />
                       </span>
                     </div>
@@ -188,7 +224,7 @@ export default async function PageView({
                   <Link className="article-card" href={`/${a.slug}`} key={a.slug}>
                     <h2>{a.title}</h2>
                     <span className="case__link">
-                      Читать
+                      {articlesLabels.cta as string}
                       <IconArrow />
                     </span>
                   </Link>
@@ -207,21 +243,21 @@ export default async function PageView({
                   ['dostavka', 'prodazhatopliva', 'dopoborudovanie'].includes(page.slug)) && (
                   <h2 className="section__h2">
                     {page.kind === 'price'
-                      ? 'Цены на аренду техники'
+                      ? b.h2Prices
                       : page.kind === 'cases'
-                        ? 'Объекты и выполненные работы'
+                        ? b.h2Cases
                         : page.kind === 'articles'
-                          ? 'Статьи и разборы'
+                          ? b.h2Articles
                           : page.slug === 'dostavka'
-                            ? 'Стоимость и сроки доставки'
+                            ? b.h2Delivery
                             : page.slug === 'prodazhatopliva'
-                              ? 'Дизельное топливо в аренду'
-                              : 'Шумозащитное ограждение'}
+                              ? b.h2Fuel
+                              : b.h2Noise}
                   </h2>
                 )}
                 <div
                   className="prose legacy-content"
-                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.bodyHtml) }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(withCmsMedia(page.bodyHtml)) }}
                 />
               </>
             )}
@@ -231,7 +267,7 @@ export default async function PageView({
             {page.kind === 'catalog' && page.category !== 'used' && (
               <p style={{ marginTop: 28 }}>
                 <Link className="btn btn--outline" href="/#lead">
-                  Подобрать и рассчитать
+                  {b.ctaCalc as string}
                   <IconArrow className="btn__icon" />
                 </Link>
               </p>
@@ -240,7 +276,7 @@ export default async function PageView({
         </section>
       </main>
 
-      <SiteFooter settings={settings} />
+      <SiteFooter settings={settings} content={content} tokens={tokens} />
 
       {/* ─── Разметка для поисковиков и ИИ-ответов ─── */}
       {cat && (
@@ -289,7 +325,7 @@ export default async function PageView({
                 '@context': 'https://schema.org',
                 '@type': 'BreadcrumbList',
                 itemListElement: [
-                  { '@type': 'ListItem', position: 1, name: 'Главная', item: SITE_URL },
+                  { '@type': 'ListItem', position: 1, name: crumbHome, item: SITE_URL },
                   {
                     '@type': 'ListItem',
                     position: 2,

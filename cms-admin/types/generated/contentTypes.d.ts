@@ -536,7 +536,7 @@ export interface ApiCaseCase extends Struct.CollectionTypeSchema {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    image: Schema.Attribute.String;
+    image: Schema.Attribute.Media<'images'>;
     imageAlt: Schema.Attribute.String &
       Schema.Attribute.SetMinMaxLength<{
         maxLength: 160;
@@ -577,9 +577,16 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    answer: Schema.Attribute.Text;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    facts: Schema.Attribute.JSON;
+    faq: Schema.Attribute.JSON;
+    heroTitle: Schema.Attribute.String;
+    image: Schema.Attribute.Media<'images'>;
+    includes: Schema.Attribute.JSON;
+    includesNote: Schema.Attribute.String;
     key: Schema.Attribute.String & Schema.Attribute.Required;
     label: Schema.Attribute.String & Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
@@ -590,6 +597,7 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     publishedAt: Schema.Attribute.DateTime;
+    seoDescription: Schema.Attribute.Text;
     slug: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
@@ -598,6 +606,61 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+  };
+}
+
+export interface ApiContentBlockContentBlock
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'content-blocks';
+  info: {
+    description: '\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u0443\u0435\u043C\u044B\u0435 \u0442\u0435\u043A\u0441\u0442\u044B \u0441\u0430\u0439\u0442\u0430: \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0438, \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u044F, \u0441\u043F\u0438\u0441\u043A\u0438, \u043F\u043E\u0434\u043F\u0438\u0441\u0438. \u041A\u0430\u0436\u0434\u044B\u0439 \u0431\u043B\u043E\u043A \u2014 \u043E\u0434\u0438\u043D \u0441\u043C\u044B\u0441\u043B\u043E\u0432\u043E\u0439 \u044D\u043A\u0440\u0430\u043D (\u0433\u043B\u0430\u0432\u043D\u0430\u044F, \u0448\u0430\u043F\u043A\u0430, \u043F\u043E\u0434\u0432\u0430\u043B, \u043A\u0430\u0442\u0430\u043B\u043E\u0433, \u0444\u043E\u0440\u043C\u0430\u2026). \u0422\u0435\u043A\u0441\u0442\u044B \u0431\u0435\u0440\u0443\u0442\u0441\u044F \u043E\u0442\u0441\u044E\u0434\u0430, \u0430 \u043D\u0435 \u0438\u0437 \u043A\u043E\u0434\u0430.';
+    displayName: '\u0422\u0435\u043A\u0441\u0442\u043E\u0432\u044B\u0439 \u0431\u043B\u043E\u043A';
+    pluralName: 'content-blocks';
+    singularName: 'content-block';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    group: Schema.Attribute.Enumeration<
+      [
+        'global',
+        'header',
+        'footer',
+        'home',
+        'catalog',
+        'product',
+        'contacts',
+        'cases',
+        'articles',
+        'forms',
+        'seo',
+      ]
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'global'>;
+    isActive: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    items: Schema.Attribute.JSON;
+    key: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::content-block.content-block'
+    > &
+      Schema.Attribute.Private;
+    order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    publishedAt: Schema.Attribute.DateTime;
+    text: Schema.Attribute.Text;
+    title: Schema.Attribute.String;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    value: Schema.Attribute.String;
   };
 }
 
@@ -632,7 +695,7 @@ export interface ApiEquipmentItemEquipmentItem
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     description: Schema.Attribute.Text;
-    image: Schema.Attribute.String;
+    image: Schema.Attribute.Media<'images'>;
     imageAlt: Schema.Attribute.String &
       Schema.Attribute.SetMinMaxLength<{
         maxLength: 160;
@@ -737,6 +800,44 @@ export interface ApiLeadLead extends Struct.CollectionTypeSchema {
       Schema.Attribute.SetMinMaxLength<{
         maxLength: 120;
       }>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiMenuItemMenuItem extends Struct.CollectionTypeSchema {
+  collectionName: 'menu-items';
+  info: {
+    description: '\u041F\u0443\u043D\u043A\u0442\u044B \u043D\u0430\u0432\u0438\u0433\u0430\u0446\u0438\u0438: \u0432\u0435\u0440\u0445\u043D\u0435\u0435 \u043C\u0435\u043D\u044E, \u0441\u043F\u0438\u0441\u043E\u043A \u0442\u0435\u0445\u043D\u0438\u043A\u0438 \u0432 \u043C\u0435\u0433\u0430-\u043C\u0435\u043D\u044E, \u043A\u043E\u043B\u043E\u043D\u043A\u0438 \u043F\u043E\u0434\u0432\u0430\u043B\u0430. \u041E\u0434\u0438\u043D \u043F\u0443\u043D\u043A\u0442 \u2014 \u043E\u0434\u043D\u0430 \u0441\u0442\u0440\u043E\u043A\u0430, \u043F\u043E\u0440\u044F\u0434\u043E\u043A \u0437\u0430\u0434\u0430\u0451\u0442\u0441\u044F \u0447\u0438\u0441\u043B\u043E\u043C.';
+    displayName: '\u041F\u0443\u043D\u043A\u0442 \u043C\u0435\u043D\u044E';
+    pluralName: 'menu-items';
+    singularName: 'menu-item';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    group: Schema.Attribute.Enumeration<
+      ['header', 'tech', 'footer-services', 'footer-company']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'header'>;
+    href: Schema.Attribute.String & Schema.Attribute.Required;
+    isActive: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    label: Schema.Attribute.String & Schema.Attribute.Required;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::menu-item.menu-item'
+    > &
+      Schema.Attribute.Private;
+    note: Schema.Attribute.Text;
+    order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -929,23 +1030,37 @@ export interface ApiSiteSettingSiteSetting extends Struct.CollectionTypeSchema {
     discountPercent: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<10>;
     email: Schema.Attribute.String & Schema.Attribute.Required;
     fleetMW: Schema.Attribute.Integer;
+    footerAbout: Schema.Attribute.Text;
+    footerBottom: Schema.Attribute.Text;
+    footerContactsTitle: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B'>;
     foundedYear: Schema.Attribute.Integer;
+    heroImage: Schema.Attribute.Media<'images'>;
     legalName: Schema.Attribute.String;
+    legalPolicyUrl: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'/politika-obrabotki-personalnyh-dannyh'>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
       'api::site-setting.site-setting'
     > &
       Schema.Attribute.Private;
+    logo: Schema.Attribute.Media<'images'>;
+    logoMark: Schema.Attribute.Media<'images'>;
+    ogDescription: Schema.Attribute.Text;
+    ogTitle: Schema.Attribute.String;
     phone: Schema.Attribute.String & Schema.Attribute.Required;
     phoneRaw: Schema.Attribute.String & Schema.Attribute.Required;
     publishedAt: Schema.Attribute.DateTime;
     rating: Schema.Attribute.Float;
     ratingCount: Schema.Attribute.Integer;
+    seoDescription: Schema.Attribute.Text;
+    seoTitle: Schema.Attribute.String;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     workingHours: Schema.Attribute.String;
+    yandexOrgId: Schema.Attribute.String;
     yandexReviewsUrl: Schema.Attribute.String;
   };
 }
@@ -1488,8 +1603,10 @@ declare module '@strapi/strapi' {
       'api::article.article': ApiArticleArticle;
       'api::case.case': ApiCaseCase;
       'api::category.category': ApiCategoryCategory;
+      'api::content-block.content-block': ApiContentBlockContentBlock;
       'api::equipment-item.equipment-item': ApiEquipmentItemEquipmentItem;
       'api::lead.lead': ApiLeadLead;
+      'api::menu-item.menu-item': ApiMenuItemMenuItem;
       'api::page.page': ApiPagePage;
       'api::price-table.price-table': ApiPriceTablePriceTable;
       'api::redirect.redirect': ApiRedirectRedirect;

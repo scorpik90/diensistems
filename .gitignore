@@ -3,6 +3,8 @@
 .env.local
 .env.production
 .strapi-tokens.json
+# Секрет сборки образа (BuildKit) — создаёт deploy.sh из .env
+secrets/
 # Секрет сборки сайта (BuildKit secret, создаётся deploy.sh)
 secrets/
 
@@ -14,11 +16,17 @@ scripts/_cache/
 # Кэш краулера в корне проекта (снимки html) — не коммитим
 _cache/
 
+# ВНИМАНИЕ: assets/legacy-images/ коммитится намеренно.
+# Это архив исходных фотографий боевого сайта — источник для
+# перезаливки в медиатеку Strapi (scripts/import-content-to-cms.mjs).
+# Сайт эти файлы не раздаёт: все снимки отдаёт CMS.
+
 # ─── Сборка ─────────────────────────────────────────────────────
 .next/
 out/
 build/
 dist/
+tsconfig.tsbuildinfo
 
 # ─── Зависимости ────────────────────────────────────────────────
 node_modules/

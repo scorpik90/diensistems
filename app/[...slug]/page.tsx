@@ -1,6 +1,6 @@
 ﻿import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
-import { getCMS } from '@/lib/cms';
+import { getCMS, getContent } from '@/lib/cms';
 import { categoryContent } from '@/lib/category-content';
 import { pageDescription, pageTitle } from '@/lib/seo-meta';
 import {
@@ -82,6 +82,8 @@ export async function generateMetadata({
   if (slug.length !== 1) return {};
 
   const cms = getCMS();
+  const content = await getContent();
+  const hints = (content.o('seo.main').hints ?? null) as Record<string, string> | null;
   const key = slug[0];
 
   const equipment = await cms.getEquipmentBySlug(key);
@@ -118,15 +120,26 @@ export async function generateMetadata({
   if (page) {
     /* Для каталогов сниппет собирается из данных каталога:
        актуальные цены, количество моделей и диапазон мощностей */
-    let description = pageDescription(page);
+    let description = pageDescription(page, hints);
     if (page.kind === 'catalog' && page.category) {
-      const items = await cms.getEquipmentByCategory(page.category);
-      const cat = categoryContent(page.kind, page.slug, page.category, items);
+      const [items, categories, settings] = await Promise.all([
+        cms.getEquipmentByCategory(page.category),
+        cms.getCategories(),
+        cms.getSettings(),
+      ]);
+      const cat = categoryContent(
+        page.kind,
+        page.slug,
+        page.category,
+        items,
+        categories.find((c) => c.id === page.category) ?? null,
+        settings
+      );
       if (cat?.description) description = cat.description;
     }
 
     return {
-      title: pageTitle(page),
+      title: pageTitle(page, hints),
       description,
       alternates: { canonical: `/${page.slug}` },
     };
@@ -142,7 +155,7 @@ export default async function CatchAllPage({
 }) {
   const { slug } = await params;
   const cms = getCMS();
-  const settings = await cms.getSettings();
+  const [settings, content] = await Promise.all([cms.getSettings(), getContent()]);
 
   if (slug.length !== 1) notFound();
   const key = slug[0];
@@ -155,21 +168,29 @@ export default async function CatchAllPage({
 
   /* 2) Позиция каталога */
   const equipment = await cms.getEquipmentBySlug(key);
-  if (equipment) return <EquipmentView item={equipment} settings={settings} />;
+  if (equipment) {
+    return <EquipmentView item={equipment} settings={settings} content={content} />;
+  }
 
   /* 3) Статья */
   const article = await cms.getArticle(key);
-  if (article) return <ArticleView article={article} settings={settings} />;
+  if (article) {
+    return <ArticleView article={article} settings={settings} content={content} />;
+  }
 
   /* 4) Кейс */
   const caseStudy = await cms.getCase(key);
-  if (caseStudy) return <CaseView item={caseStudy} settings={settings} />;
+  if (caseStudy) {
+    return <CaseView item={caseStudy} settings={settings} content={content} />;
+  }
 
   /* 5) Статическая страница */
   const page = await cms.getPage(key);
   if (page) {
-    if (page.kind === 'contacts') return <ContactsView page={page} settings={settings} />;
-    return <PageView page={page} settings={settings} />;
+    if (page.kind === 'contacts') {
+      return <ContactsView page={page} settings={settings} content={content} />;
+    }
+    return <PageView page={page} settings={settings} content={content} />;
   }
 
   notFound();

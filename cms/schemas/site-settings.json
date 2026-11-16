@@ -67,7 +67,62 @@
     },
     "yandexReviewsUrl": {
       "type": "string",
-      "description": "Добавлено автоматически при сверке схемы с импортом (yandexReviewsUrl)"
+      "description": "Страница отзывов на Яндекс.Картах"
+    },
+    "yandexOrgId": {
+      "type": "string",
+      "description": "ID организации на Яндекс.Картах — для виджета рейтинга"
+    },
+    "logo": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"],
+      "description": "Полный логотип (для страницы контактов и подвала)"
+    },
+    "logoMark": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"],
+      "description": "Знак (эмблема) — в шапке"
+    },
+    "heroImage": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"],
+      "description": "Фоновая фотография первого экрана"
+    },
+    "footerAbout": {
+      "type": "text",
+      "description": "Абзац о компании в подвале"
+    },
+    "footerBottom": {
+      "type": "text",
+      "description": "Нижняя строка подвала: копирайт"
+    },
+    "footerContactsTitle": {
+      "type": "string",
+      "default": "Контакты"
+    },
+    "legalPolicyUrl": {
+      "type": "string",
+      "default": "/politika-obrabotki-personalnyh-dannyh",
+      "description": "Адрес политики обработки персональных данных"
+    },
+    "seoTitle": {
+      "type": "string",
+      "description": "Заголовок главной страницы по умолчанию"
+    },
+    "seoDescription": {
+      "type": "text",
+      "description": "Описание главной страницы по умолчанию"
+    },
+    "ogTitle": {
+      "type": "string",
+      "description": "Заголовок для Open Graph"
+    },
+    "ogDescription": {
+      "type": "text",
+      "description": "Описание для Open Graph"
     }
   }
 }

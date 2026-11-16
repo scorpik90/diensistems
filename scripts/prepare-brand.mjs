@@ -11,7 +11,7 @@
  *   1) определяем цвет фона по углу изображения и убираем его,
  *      сохраняя мягкий переход на границе;
  *   2) обрезаем пустые поля по содержимому;
- *   3) сохраняем в public/images/brand/ в PNG, WebP и AVIF,
+ *   3) сохраняем в assets/legacy-images/brand/ в PNG, WebP и AVIF,
  *      плюс favicon.ico, apple-icon.png и icon.png из знака.
  */
 import fs from 'node:fs';
@@ -22,7 +22,7 @@ import sharp from 'sharp';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const SRC = 'D:\\Загрузки';
-const OUT = path.join(ROOT, 'public', 'images', 'brand');
+const OUT = path.join(ROOT, 'assets', 'legacy-images', 'brand');
 
 fs.mkdirSync(OUT, { recursive: true });
 

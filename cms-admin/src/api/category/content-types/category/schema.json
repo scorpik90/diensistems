@@ -31,6 +31,42 @@
     "order": {
       "type": "integer",
       "default": 0
+    },
+    "answer": {
+      "type": "text",
+      "description": "«Краткий ответ» — первый абзац страницы категории. Отвечает на вопрос «что это и сколько стоит» без лишних слов."
+    },
+    "facts": {
+      "type": "json",
+      "description": "Блок фактов: [{ label, value }]"
+    },
+    "includes": {
+      "type": "json",
+      "description": "Что входит в стоимость: [{ text }]"
+    },
+    "includesNote": {
+      "type": "string",
+      "description": "Сноска под списком «Что входит в стоимость»"
+    },
+    "faq": {
+      "type": "json",
+      "description": "Вопросы и ответы страницы: [{ q, a }]"
+    },
+    "seoDescription": {
+      "type": "text",
+      "description": "Описание страницы для поисковой выдачи. Если пусто — собирается из данных каталога."
+    },
+    "heroTitle": {
+      "type": "string",
+      "description": "Заголовок страницы (H1). Если пусто — берётся из коллекции страниц."
+    },
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ],
+      "description": "Фото категории"
     }
   }
 }

@@ -55,6 +55,8 @@ services:
       # Сайт читает CMS по внутренней сети
       CMS_PROVIDER: strapi
       STRAPI_URL: http://strapi:1337
+      # Публичный адрес CMS — для ссылок на фотографии в вёрстке
+      CMS_PUBLIC_URL: ${CMS_PUBLIC_URL}
     volumes:
       # Загруженные в CMS файлы живут отдельно от контейнера
       - strapi-uploads:/app/public/uploads
@@ -72,8 +74,11 @@ services:
       context: .
       dockerfile: deploy/Dockerfile.web
       args:
+        # Данные для generateStaticParams тянет из CMS ещё на этапе сборки
         CMS_PROVIDER: strapi
         STRAPI_URL: http://strapi:1337
+        # Публичный адрес CMS — от него строятся ссылки на фотографии
+        CMS_PUBLIC_URL: ${CMS_PUBLIC_URL}
       # Токен для generateStaticParams монтируется как BuildKit secret
       # (не попадает в слои и историю образа)
       secrets:
@@ -87,6 +92,8 @@ services:
       CMS_PROVIDER: strapi
       STRAPI_URL: http://strapi:1337
       STRAPI_TOKEN: ${STRAPI_TOKEN}
+      # Публичный адрес CMS — от него строятся ссылки на фотографии
+      CMS_PUBLIC_URL: ${CMS_PUBLIC_URL}
       # Заявки с формы сохраняются в CMS этим токеном
       STRAPI_WRITE_TOKEN: ${STRAPI_WRITE_TOKEN}
       # Публичный адрес сайта — для canonical, sitemap и OpenGraph

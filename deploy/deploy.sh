@@ -78,6 +78,8 @@ if [ ! -f "$ENV_FILE" ]; then
 SITE_URL=genorg.ru
 # Адрес админки CMS
 CMS_URL=cms.genorg.ru
+# Публичный адрес CMS — от него строятся ссылки на фотографии в вёрстке
+CMS_PUBLIC_URL=https://cms.genorg.ru
 
 # База данных
 POSTGRES_USER=genorg
@@ -111,16 +113,6 @@ else
   cp ".env" "$ENV_PROD"
 fi
 ok "Готов $ENV_PROD"
-
-# Секрет для сборки сайта: Dockerfile.web читает его как BuildKit secret
-# (RUN --mount=type=secret), поэтому он не попадает в слои и историю образа
-mkdir -p secrets
-grep '^STRAPI_TOKEN=' "$ENV_FILE" | cut -d= -f2- > secrets/strapi_token.txt
-if [ -s secrets/strapi_token.txt ]; then
-  ok "Секрет сборки записан в secrets/strapi_token.txt"
-else
-  warn "В .env нет STRAPI_TOKEN — сборка сайта падёт на обращении к CMS"
-fi
 
 # Токен из локальной разработки, если он есть и совпадает с CMS
 if [ -f ".strapi-tokens.json" ] && command -v node >/dev/null 2>&1; then
@@ -173,14 +165,43 @@ else
   warn "Импорт не завершился — проверьте логи и повторите позже"
 fi
 
+# Текстовые блоки, меню и фотографии — отдельным шагом:
+# они лежат в медиатеке Strapi, а не в базе.
+if docker compose exec -T strapi node scripts/import-content-to-cms.mjs; then
+  ok "Тексты, меню и фотографии загружены в медиатеку CMS"
+else
+  warn "Перенос контента не завершился — проверьте логи"
+fi
+
 # ─── 6. Сайт ─────────────────────────────────────────────────
 
 step "Собираю и запускаю сайт (Next.js)"
+
+# Токен сборки — как BuildKit secret: в слои образа и в его историю
+# он не попадает (в отличие от ARG).
+mkdir -p secrets
+chmod 700 secrets
+if [ -s secrets/strapi_token.txt ]; then
+  ok "Секрет сборки записан в secrets/strapi_token.txt"
+else
+  STRAPI_TOKEN_BUILD=$(grep '^STRAPI_TOKEN=' "$ENV_FILE" | cut -d= -f2)
+  if [ -n "$STRAPI_TOKEN_BUILD" ]; then
+    printf '%s' "$STRAPI_TOKEN_BUILD" > secrets/strapi_token.txt
+    chmod 600 secrets/strapi_token.txt
+    ok "Секрет сборки создан из .env"
+  else
+    warn "В .env нет STRAPI_TOKEN — сборка сайта падёт на обращении к CMS"
+  fi
+fi
 
 # Каталог резервных заявок должен существовать ДО старта контейнера:
 # Docker создал бы его от root, а пишет в него пользователь nextjs (uid 1001)
 mkdir -p data
 chown 1001:1001 data 2>/dev/null || true
+
+echo "  очищаю кэш предыдущей сборки (чтобы не остались старые страницы)…"
+docker compose exec -T web rm -rf /app/.next 2>/dev/null || true
+rm -rf .next
 
 echo "  сборка образа занимает 2–4 минуты…"
 docker compose build web
@@ -233,7 +254,7 @@ mkdir -p /opt/genorg-backups
 
 cat > /opt/genorg-backups/backup.sh <<'BACKUP'
 #!/usr/bin/env bash
-# Дамп базы + загруженные файлы + резервные заявки (data/), ротация 14 копий
+# Дамп базы + загруженные файлы, ротация 14 копий
 set -euo pipefail
 cd /opt/genorg
 STAMP=$(date +%F-%H%M)
@@ -242,8 +263,10 @@ docker compose exec -T db pg_dump -U "${POSTGRES_USER:-genorg}" "${POSTGRES_DB:-
   | gzip > "/opt/genorg-backups/db-$STAMP.sql.gz"
 docker run --rm -v genorg_strapi-uploads:/u:ro -v /opt/genorg-backups:/out \
   alpine tar czf "/out/uploads-$STAMP.tar.gz" -C /u .
+# Резервные заявки (data/) тоже в бэкап.
 # Резервный канал заявок содержит персональные данные (имя, телефон) —
-# в бэкап он входит, поэтому файл-канал в проде инструмент крайнего случая
+# в бэкап он входит, поэтому файл-канал в проде инструмент крайне
+# редкого случая.
 if [ -d data ]; then
   tar czf "/opt/genorg-backups/data-$STAMP.tar.gz" data
 fi

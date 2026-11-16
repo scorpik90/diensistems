@@ -35,7 +35,9 @@ for (const p of ['/', '/arendageneratorov', '/arendakompressorov', '/arendamanip
     }
   }
 
-  const answer = html.match(/<div class="answer">([\s\S]*?)<\/div>\s*<dl/s)?.[1] ?? '';
+  /* Блок «краткий ответ» — абзац .answer__text внутри .answer */
+  const answer =
+    html.match(/<div class="answer">\s*<p class="answer__text">([\s\S]*?)<\/p>/)?.[1] ?? '';
   const answerText = answer.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   const facts = (html.match(/class="answer__facts"/g) ?? []).length;
   const faqItems = (html.match(/class="faq__item"/g) ?? []).length;

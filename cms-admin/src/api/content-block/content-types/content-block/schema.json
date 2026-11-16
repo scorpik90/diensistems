@@ -1,0 +1,66 @@
+{
+  "kind": "collectionType",
+  "collectionName": "content-blocks",
+  "info": {
+    "singularName": "content-block",
+    "pluralName": "content-blocks",
+    "displayName": "Текстовый блок",
+    "description": "Редактируемые тексты сайта: заголовки, описания, списки, подписи. Каждый блок — один смысловой экран (главная, шапка, подвал, каталог, форма…). Тексты берутся отсюда, а не из кода."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "key": {
+      "type": "string",
+      "required": true,
+      "unique": true,
+      "description": "Машинный ключ блока, напр. home.hero или footer. Менять только вместе с кодом сайта."
+    },
+    "group": {
+      "type": "enumeration",
+      "enum": [
+        "global",
+        "header",
+        "footer",
+        "home",
+        "catalog",
+        "product",
+        "contacts",
+        "cases",
+        "articles",
+        "forms",
+        "seo"
+      ],
+      "required": true,
+      "default": "global",
+      "description": "Раздел сайта — для удобства поиска в списке"
+    },
+    "title": {
+      "type": "string",
+      "description": "Заголовок блока (H2/H3 или короткая подпись)"
+    },
+    "text": {
+      "type": "text",
+      "description": "Основной текст блока"
+    },
+    "value": {
+      "type": "string",
+      "description": "Короткое значение: подпись, надпись, телефон-ссылка"
+    },
+    "items": {
+      "type": "json",
+      "description": "Списки и структуры блока: [{ label, value }], [{ title, text }] и т.п. Формат зависит от ключа блока."
+    },
+    "order": {
+      "type": "integer",
+      "default": 0,
+      "description": "Порядок вывода внутри группы"
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true,
+      "description": "Выключенный блок не выводится на сайте"
+    }
+  }
+}

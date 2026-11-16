@@ -35,22 +35,40 @@ async function api(path, method = 'GET', body, headers = {}) {
   return { status: res.status, data };
 }
 
+/**
+ * Менеджеры админки.
+ *
+ * Пароли берутся ТОЛЬКО из переменных окружения — в коде их быть
+ * не должно: репозиторий может оказаться публичным. Значения хранятся
+ * в .env (в .gitignore) и в файле с доступами у владельца сайта.
+ */
 const MANAGERS = [
   {
     email: process.env.EDITOR_EMAIL ?? 'editor@genorg.ru',
-    password: process.env.EDITOR_PASSWORD ?? 'Genorg-Editor-2026!',
+    password: process.env.EDITOR_PASSWORD ?? '',
     firstname: 'Контент-менеджер',
     lastname: '',
     role: 'strapi-editor',
   },
   {
     email: process.env.AUTHOR_EMAIL ?? 'author@genorg.ru',
-    password: process.env.AUTHOR_PASSWORD ?? 'Genorg-Author-2026!',
+    password: process.env.AUTHOR_PASSWORD ?? '',
     firstname: 'Автор',
     lastname: '',
     role: 'strapi-author',
   },
 ];
+
+/* Без пароля пользователя не создать — подсказываем, что делать */
+for (const m of MANAGERS) {
+  if (!m.password) {
+    console.error(
+      `  ! Нужен пароль для ${m.email}. Задайте переменную окружения ` +
+        `(${m.email.startsWith('editor') ? 'EDITOR' : 'AUTHOR'}_PASSWORD) и повторите.`
+    );
+    process.exit(1);
+  }
+}
 
 /** Strapi в разных эндпоинтах отдаёт списки по-разному:
  *  массив, { results: [...] } или { data: [...] }. */

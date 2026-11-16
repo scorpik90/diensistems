@@ -4,10 +4,11 @@ const nextConfig = {
   poweredByHeader: false, // не отдавать X-Powered-By: Next.js
 
   images: {
+    // Фотографии лежат в медиатеке Strapi и отдаются обычными <img>
+    // с srcset: браузер сам выбирает размер из набора, который создаёт
+    // CMS при загрузке. Оптимизатор Next.js здесь не используется.
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [400, 640, 800, 1200, 1920],
-    // Изображения уже перекодированы в AVIF/WebP на этапе сборки ассетов,
-    // поэтому next/image отдаёт <picture> без ресайза на сервере.
     unoptimized: true,
   },
 
@@ -36,19 +37,6 @@ const nextConfig = {
         source: '/_next/static/:path*',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
-        ],
-      },
-      {
-        /*
-         * Картинки из /public меняются при перегенерации фото
-         * (миграция, обновление снимков). Долгий max-age оставил бы
-         * у посетителей старые версии на месяц, поэтому кэшируем
-         * коротко, но с ETag: браузер перезапрашивает файл, а сервер
-         * отвечает 304, если он не изменился — трафик не растёт.
-         */
-        source: '/images/:path*',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
         ],
       },
       {

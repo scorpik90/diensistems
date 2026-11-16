@@ -14,7 +14,7 @@
  *
  * В CMS у каждой позиции уже готовый путь «eq/<n>», поэтому скрипт
  * НЕ трогает content/seed.json — он перезаписывает только файлы
- * внутри public/images/eq/<n>/.
+ * внутри assets/legacy-images/eq/<n>/.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,7 +23,7 @@ import sharp from 'sharp';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const OUT = path.join(ROOT, 'public', 'images', 'eq');
+const OUT = path.join(ROOT, 'assets', 'legacy-images', 'eq');
 const ORIGIN = 'https://genorg.ru';
 const UA = 'Mozilla/5.0 (compatible; genorg-migration/2.0)';
 
