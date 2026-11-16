@@ -113,7 +113,7 @@ export default async function PageView({
                 {cat && cat.faq.length > 0 && (
                   <>
                     <h2 className="section__h2">Частые вопросы</h2>
-                    <div className="faq">
+                    <div className="faq faq--cat">
                       {cat.faq.map((f) => (
                         <details className="faq__item" key={f.q}>
                           <summary className="faq__q">{f.q}</summary>

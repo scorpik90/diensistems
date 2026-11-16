@@ -817,8 +817,11 @@ body[data-scroll-lock="true"] { overflow: hidden; }
 }
 .faq__ico svg { width: 14px; height: 14px; }
 .faq__item[data-open="true"] .faq__ico { transform: rotate(45deg); background: var(--brand-100); color: var(--brand-700); }
-.faq__a { padding: 0 20px; max-height: 0; overflow: hidden; transition: max-height .28s var(--ease); }
-.faq__a-inner { padding-bottom: 18px; font-size: .9375rem; color: var(--slate-600); }
+/* Свёрнутое состояние — строгий ноль: паддинги внутри .faq__a-inner,
+   иначе padding-bottom просачивается наружу (overflow клиппит контент,
+   но не собственные паддинги контейнера) */
+.faq__a { max-height: 0; overflow: hidden; transition: max-height .28s var(--ease); }
+.faq__a-inner { padding: 0 20px 18px; font-size: .9375rem; color: var(--slate-600); }
 
 /* ─── 18. Лид-форма ─────────────────────────────────────────────────── */
 .lead { display: grid; gap: clamp(30px, 4vw, 56px); grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; }
@@ -1648,24 +1651,28 @@ a.contact-card:hover .contact-card__value { color: var(--brand-700); }
   border-bottom: 1px solid var(--slate-200);
 }
 
-/* FAQ на страницах каталогов */
-.faq { display: grid; gap: 8px; margin: 0 0 32px; }
-.faq__item {
+/* FAQ на страницах каталогов — только под модификатором .faq--cat
+   (классы .faq__q/.faq__a заняты аккордеоном главной, где вопрос —
+   <button> с иконкой ⊕. Без префикса чеврон ::after и паддинги этого
+   блока каскадом перебивали главную: к кнопке дорисовывалась вторая
+   стрелка, а под свёрнутым ответом оставалась полоса padding-bottom). */
+.faq--cat { gap: 8px; margin: 0 0 32px; }
+.faq--cat .faq__item {
   border: 1px solid var(--slate-200); border-radius: var(--r);
   background: var(--card); overflow: hidden;
 }
-.faq__q {
+.faq--cat .faq__q {
   padding: 15px 18px; cursor: pointer; list-style: none;
   font-weight: 600; font-size: .9375rem; color: var(--ink-900);
   position: relative; padding-right: 44px;
 }
-.faq__q::-webkit-details-marker { display: none; }
-.faq__q::after {
+.faq--cat .faq__q::-webkit-details-marker { display: none; }
+.faq--cat .faq__q::after {
   content: ''; position: absolute; right: 18px; top: 50%;
   width: 9px; height: 9px; margin-top: -6px;
   border-right: 2px solid var(--slate-400); border-bottom: 2px solid var(--slate-400);
   transform: rotate(45deg); transition: transform var(--dur) var(--ease);
 }
-.faq__item[open] .faq__q::after { transform: rotate(-135deg); margin-top: -2px; }
-.faq__a { padding: 0 18px 16px; }
-.faq__a p { margin: 0; font-size: .9375rem; color: var(--slate-600); max-width: 78ch; }
+.faq--cat .faq__item[open] .faq__q::after { transform: rotate(-135deg); margin-top: -2px; }
+.faq--cat .faq__a { padding: 0 18px 16px; max-height: none; }
+.faq--cat .faq__a p { margin: 0; font-size: .9375rem; color: var(--slate-600); max-width: 78ch; }
