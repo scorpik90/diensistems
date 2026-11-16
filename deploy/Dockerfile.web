@@ -11,15 +11,17 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --ignore-scripts
 COPY . .
-# Данные для generateStaticParams берутся из CMS на этапе сборки
-ARG CMS_PROVIDER
-ARG STRAPI_URL
-ARG STRAPI_TOKEN
+# generateStaticParams тянет данные из CMS, поэтому токен нужен на сборке.
+# ВАЖНО: токен передаётся BuildKit secret (см. docker-compose.yml → secrets),
+# а не как ARG — build args сохраняются в истории образа, secret не попадает
+# ни в слои, ни в `docker history`.
+ARG CMS_PROVIDER=strapi
+ARG STRAPI_URL=http://strapi:1337
 ENV CMS_PROVIDER=${CMS_PROVIDER}
 ENV STRAPI_URL=${STRAPI_URL}
-ENV STRAPI_TOKEN=${STRAPI_TOKEN}
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN --mount=type=secret,id=strapi_token \
+    STRAPI_TOKEN="$(cat /run/secrets/strapi_token 2>/dev/null || true)" npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -27,7 +29,8 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 
-# sharp нужен и в рантайме (next/image с unoptimized всё же грузит модуль)
+# sharp не нужен: images.unoptimized=true, next/image отдаёт <picture>
+# без ресайза на сервере
 RUN apk add --no-cache libc6-compat && \
     addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001

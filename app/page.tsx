@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getCMS } from '@/lib/cms';
 import { money } from '@/lib/format';
 import { CASE_IMAGE_WIDTH, caseImageDir, equipmentImageDir } from '@/lib/media';
-import { faqJsonLd } from '@/lib/seo';
+import { faqJsonLd, jsonLd } from '@/lib/seo';
 import { ADVANTAGES, FAQS, STEPS, TARIFFS } from '@/lib/content-blocks';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
@@ -467,7 +467,7 @@ export default async function HomePage() {
           </div>
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd(FAQS)) }}
+            dangerouslySetInnerHTML={{ __html: jsonLd(faqJsonLd(FAQS)) }}
           />
         </section>
 

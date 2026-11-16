@@ -14,6 +14,14 @@ import path from 'node:path';
  */
 export const runtime = 'nodejs';
 
+/**
+ * Редактор — инструмент локального mock-стенда. В production-сборке
+ * он отключён, пока не задан ALLOW_MOCK_ADMIN=1: прод-редакция контента
+ * идёт через CMS (Strapi), а не через файл seed.json.
+ */
+const allowMockAdmin =
+  process.env.NODE_ENV !== 'production' || process.env.ALLOW_MOCK_ADMIN === '1';
+
 const SEED_PATH = path.join(process.cwd(), 'content', 'seed.json');
 
 interface Update {
@@ -25,6 +33,10 @@ function authorized(request: Request, bodyToken?: string) {
   const expected = process.env.ADMIN_TOKEN;
   if (!expected) return false;
 
+  /* Известный дефолт из старого .env.example не принимаем: если кто-то
+     скопировал пример как есть, это не должно открывать запись контента. */
+  if (expected === 'genorg-local-admin' && process.env.NODE_ENV === 'production') return false;
+
   const header = request.headers.get('x-admin-token') ?? '';
   const bearer = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
   const given = header || bearer || bodyToken || '';
@@ -32,6 +44,17 @@ function authorized(request: Request, bodyToken?: string) {
 }
 
 export async function POST(request: Request) {
+  if (!allowMockAdmin) {
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          'Редактор отключён в production. Контент правится в CMS (Strapi), либо задайте ALLOW_MOCK_ADMIN=1 для mock-стенда.',
+      },
+      { status: 403 }
+    );
+  }
+
   let body: Update;
   try {
     body = (await request.json()) as Update;

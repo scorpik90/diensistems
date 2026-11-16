@@ -196,6 +196,17 @@ export default function LeadForm({
           />
         </div>
 
+        {/* honeypot: поле скрыто от человека, но боты его заполняют.
+            /api/leads молча отбрасывает такие заявки (отвечает об успехе). */}
+        <input
+          type="text"
+          name="website"
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+          style={{ position: 'absolute', left: '-9999px', width: 0, height: 0, opacity: 0 }}
+        />
+
         <button className="btn btn--block btn--lg" type="submit" disabled={state === 'sending'}>
           {state === 'sending' ? 'Отправляем…' : 'Отправить заявку'}
         </button>

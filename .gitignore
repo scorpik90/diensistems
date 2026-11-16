@@ -3,6 +3,8 @@
 .env.local
 .env.production
 .strapi-tokens.json
+# Секрет сборки сайта (BuildKit secret, создаётся deploy.sh)
+secrets/
 
 # ─── Данные приложения, которые не должны попасть в репозиторий ──
 # Заявки с формы (резервный канал, когда CMS недоступна)

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getCMS } from '@/lib/cms';
-import { breadcrumbJsonLd } from '@/lib/seo';
+import { breadcrumbJsonLd, jsonLd } from '@/lib/seo';
+import { sanitizeHtml } from '@/lib/sanitize';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import { IconArrow } from '@/components/icons';
@@ -37,7 +38,7 @@ export default async function ArticleView({
 
             <div
               className="prose legacy-content"
-              dangerouslySetInnerHTML={{ __html: article.bodyHtml }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.bodyHtml) }}
             />
 
             <div className="article__cta">
@@ -78,7 +79,7 @@ export default async function ArticleView({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
+          __html: jsonLd(
             breadcrumbJsonLd([
               { name: 'Главная', url: '/' },
               { name: 'Полезное', url: '/poleznoe' },

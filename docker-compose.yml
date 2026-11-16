@@ -72,10 +72,12 @@ services:
       context: .
       dockerfile: deploy/Dockerfile.web
       args:
-        # Токен нужен уже на этапе сборки: generateStaticParams тянет данные из CMS
         CMS_PROVIDER: strapi
         STRAPI_URL: http://strapi:1337
-        STRAPI_TOKEN: ${STRAPI_TOKEN}
+      # Токен для generateStaticParams монтируется как BuildKit secret
+      # (не попадает в слои и историю образа)
+      secrets:
+        - strapi_token
     restart: unless-stopped
     depends_on:
       - strapi
@@ -89,6 +91,10 @@ services:
       STRAPI_WRITE_TOKEN: ${STRAPI_WRITE_TOKEN}
       # Публичный адрес сайта — для canonical, sitemap и OpenGraph
       SITE_URL: ${SITE_URL}
+    volumes:
+      # Резервные заявки (когда CMS недоступна) пишутся в каталог на хосте:
+      # раньше они оставались внутри контейнера и пропадали при пересборке
+      - ./data:/app/data
     networks: [web]
 
   # ── Reverse proxy + бесплатный SSL ────────────────────────────
@@ -114,6 +120,13 @@ volumes:
   strapi-uploads:
   caddy-data:
   caddy-config:
+
+secrets:
+  # Токен для generateStaticParams на этапе сборки сайта. Файл создаёт
+  # deploy.sh из .env; монтируется в Dockerfile.web через
+  # RUN --mount=type=secret и в историю образа не попадает.
+  strapi_token:
+    file: ./secrets/strapi_token.txt
 
 networks:
   # internal — без выхода в интернет (только БД)

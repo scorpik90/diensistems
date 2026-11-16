@@ -47,7 +47,28 @@ export default async function AdminPage() {
     );
   }
 
-  /* Mock-режим — локальный редактор */
+  /* Mock-режим — локальный редактор. В production-сборке редактор
+     отключён: правки контента идут в CMS. Если это намеренный
+     mock-стенд без Strapi — задайте ALLOW_MOCK_ADMIN=1. */
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_ADMIN !== '1') {
+    return (
+      <main id="main" className="adm__page">
+        <div className="container">
+          <div className="adm__head">
+            <div>
+              <h1>Редактор контента отключён</h1>
+              <p>
+                Сайт собран в production-режиме — контент правится в CMS
+                (Strapi). Если это mock-стенд без CMS, задайте переменную
+                окружения <code>ALLOW_MOCK_ADMIN=1</code> и перезапустите сервер.
+              </p>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   const [equipment, settings] = await Promise.all([
     cms.getEquipment(),
     cms.getSettings(),

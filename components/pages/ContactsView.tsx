@@ -4,6 +4,7 @@ import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import LeadForm from '@/components/LeadForm';
 import { IconClock, IconMail, IconPhone, IconPin } from '@/components/icons';
+import { sanitizeHtml } from '@/lib/sanitize';
 import type { SiteSettings, StaticPage } from '@/lib/types';
 
 /**
@@ -106,7 +107,7 @@ export default async function ContactsView({
             {page.bodyHtml && (
               <div
                 className="prose legacy-content"
-                dangerouslySetInnerHTML={{ __html: page.bodyHtml }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.bodyHtml) }}
               />
             )}
           </div>

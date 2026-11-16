@@ -11,6 +11,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { cache } from 'react';
 import seed from '@/content/seed.json';
 import { equipmentImageDir } from '@/lib/media';
 import type {
@@ -83,6 +84,9 @@ class MockCMS implements CMSProvider {
   /** Кэш прочитанного с диска файла — перечитывается при изменении mtime */
   private disk: { data: Seed; mtime: number } | null = null;
 
+  /** Кэш content/reviews.json (аналогично — по mtime) */
+  private reviewsFile: { data: Review[]; mtime: number } | null = null;
+
   /**
    * В mock-режиме данные читаются с диска, а не из бандла.
    * Правка content/seed.json подхватывается при следующем запросе
@@ -126,7 +130,26 @@ class MockCMS implements CMSProvider {
     return this.data().articles;
   }
   async getReviews() {
-    return (this.data().reviews ?? []).sort((a, b) => b.rating - a.rating || b.date.localeCompare(a.date));
+    /* В seed.json поле reviews пустое — реальные отзывы с Яндекс.Карт
+       пишет в content/reviews.json скрипт fetch-yandex-reviews.mjs
+       (формат: { all: Review[] }). Читаем оттуда, seed — как запасной источник. */
+    return this.reviewsData().sort((a, b) => b.rating - a.rating || b.date.localeCompare(a.date));
+  }
+
+  private reviewsData(): Review[] {
+    const fromSeed = this.data().reviews ?? [];
+    if (fromSeed.length) return fromSeed;
+    try {
+      const p = path.join(process.cwd(), 'content', 'reviews.json');
+      const stat = fs.statSync(p);
+      if (!this.reviewsFile || this.reviewsFile.mtime !== stat.mtimeMs) {
+        const json = JSON.parse(fs.readFileSync(p, 'utf8')) as { all?: Review[] };
+        this.reviewsFile = { data: json.all ?? [], mtime: stat.mtimeMs };
+      }
+      return this.reviewsFile.data;
+    } catch {
+      return [];
+    }
   }
   async getArticle(slug: string) {
     return this.data().articles.find((a) => a.slug === slug) ?? null;
@@ -175,7 +198,10 @@ class StrapiCMS implements CMSProvider {
   private async fetchList<T>(path: string): Promise<T[]> {
     const res = await fetch(`${this.base}${path}`, {
       headers: { Authorization: `Bearer ${this.token}` },
-      next: { revalidate: 300, tags: ['cms'] },
+      /* TTL fetch'ей = revalidate страниц (60 с). Раньше здесь стояло 300:
+         после правки цены данные сайта отставали от CMS до 5 минут
+         даже внутри ISR-обновления. */
+      next: { revalidate: 60, tags: ['cms'] },
     });
     if (!res.ok) throw new Error(`Strapi ${path} → HTTP ${res.status}`);
     const json = (await res.json()) as { data?: Record<string, unknown>[] };
@@ -269,6 +295,38 @@ class StrapiCMS implements CMSProvider {
   }
 }
 
+/* ─── Кэш запросов ──────────────────────────────────────────────────── */
+
+/**
+ * Оборачивает методы провайдера в React cache().
+ *
+ * Один рендер страницы вызывает getCMS() из layout, generateMetadata
+ * и самого компонента — без memoisation каждая точка ходила бы в CMS
+ * отдельно (2–4 лишних HTTP-запроса к Strapi на каждый рендер).
+ * cache() мемоизирует вызовы в рамках одного запроса; между запросами
+ * кэш не переживает — свежесть данных регулируют revalidate страницы
+ * и fetch'ей (60 с, значения согласованы).
+ */
+function withRequestCache(provider: CMSProvider): CMSProvider {
+  return {
+    name: provider.name,
+    getSettings: cache(() => provider.getSettings()),
+    getCategories: cache(() => provider.getCategories()),
+    getEquipment: cache(() => provider.getEquipment()),
+    getEquipmentByCategory: cache((category: CategoryId) => provider.getEquipmentByCategory(category)),
+    getEquipmentBySlug: cache((slug: string) => provider.getEquipmentBySlug(slug)),
+    getArticles: cache(() => provider.getArticles()),
+    getReviews: cache(() => provider.getReviews()),
+    getArticle: cache((slug: string) => provider.getArticle(slug)),
+    getCases: cache(() => provider.getCases()),
+    getCase: cache((slug: string) => provider.getCase(slug)),
+    getPages: cache(() => provider.getPages()),
+    getPage: cache((slug: string) => provider.getPage(slug)),
+    getPriceTables: cache(() => provider.getPriceTables()),
+    getRedirects: cache(() => provider.getRedirects()),
+  };
+}
+
 /* ─── Фабрика ────────────────────────────────────────────────────────── */
 
 let instance: CMSProvider | null = null;
@@ -278,15 +336,15 @@ export function getCMS(): CMSProvider {
 
   const provider = process.env.CMS_PROVIDER ?? 'mock';
 
-  if (provider === 'strapi') {
-    instance = new StrapiCMS(
-      process.env.STRAPI_URL ?? 'http://localhost:1337',
-      process.env.STRAPI_TOKEN ?? ''
-    );
-  } else {
-    instance = new MockCMS();
-  }
+  const base =
+    provider === 'strapi'
+      ? new StrapiCMS(
+          process.env.STRAPI_URL ?? 'http://localhost:1337',
+          process.env.STRAPI_TOKEN ?? ''
+        )
+      : new MockCMS();
 
+  instance = withRequestCache(base);
   return instance;
 }
 

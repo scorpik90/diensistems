@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getCMS } from '@/lib/cms';
-import { breadcrumbJsonLd } from '@/lib/seo';
+import { breadcrumbJsonLd, jsonLd } from '@/lib/seo';
+import { sanitizeHtml } from '@/lib/sanitize';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import { IconArrow } from '@/components/icons';
@@ -67,7 +68,7 @@ export default async function CaseView({
             {item.bodyHtml && (
               <div
                 className="prose legacy-content"
-                dangerouslySetInnerHTML={{ __html: item.bodyHtml }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.bodyHtml) }}
               />
             )}
           </div>
@@ -124,7 +125,7 @@ export default async function CaseView({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
+          __html: jsonLd(
             breadcrumbJsonLd([
               { name: 'Главная', url: '/' },
               { name: 'Наши объекты', url: '/nashiobekty' },

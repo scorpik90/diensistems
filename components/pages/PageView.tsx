@@ -8,7 +8,8 @@ import CatalogGrid from '@/components/CatalogGrid';
 import PriceTableView from '@/components/pages/PriceTableView';
 import { CASE_IMAGE_WIDTH, caseImageDir, equipmentImageDir } from '@/lib/media';
 import { categoryContent } from '@/lib/category-content';
-import { SITE_URL } from '@/lib/seo';
+import { jsonLd, SITE_URL } from '@/lib/seo';
+import { sanitizeHtml } from '@/lib/sanitize';
 import type { SiteSettings, StaticPage } from '@/lib/types';
 
 /**
@@ -220,7 +221,7 @@ export default async function PageView({
                 )}
                 <div
                   className="prose legacy-content"
-                  dangerouslySetInnerHTML={{ __html: page.bodyHtml }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.bodyHtml) }}
                 />
               </>
             )}
@@ -249,7 +250,7 @@ export default async function PageView({
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify({
+              __html: jsonLd({
                 '@context': 'https://schema.org',
                 '@type': 'ItemList',
                 name: `${page.title} — каталог`,
@@ -268,7 +269,7 @@ export default async function PageView({
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify({
+              __html: jsonLd({
                 '@context': 'https://schema.org',
                 '@type': 'FAQPage',
                 mainEntity: cat.faq.map((f) => ({
@@ -284,7 +285,7 @@ export default async function PageView({
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify({
+              __html: jsonLd({
                 '@context': 'https://schema.org',
                 '@type': 'BreadcrumbList',
                 itemListElement: [

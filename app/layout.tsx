@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { getCMS } from '@/lib/cms';
-import { organizationJsonLd, SITE_URL } from '@/lib/seo';
+import { jsonLd, organizationJsonLd, SITE_URL } from '@/lib/seo';
 import CookieNotice from '@/components/CookieNotice';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -54,7 +54,7 @@ export default async function RootLayout({
         {/* Микроразметка — рендерится на сервере, поисковик видит её без JS */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd(settings)) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd(organizationJsonLd(settings)) }}
         />
       </head>
       <body>

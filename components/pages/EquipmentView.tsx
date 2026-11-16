@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { Fragment } from 'react';
 import type { Equipment, SiteSettings } from '@/lib/types';
-import { breadcrumbJsonLd, productJsonLd } from '@/lib/seo';
+import { breadcrumbJsonLd, jsonLd, productJsonLd } from '@/lib/seo';
+import { sanitizeHtml } from '@/lib/sanitize';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import LeadForm from '@/components/LeadForm';
@@ -226,12 +227,12 @@ export default function EquipmentView({
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd(item, settings)) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(productJsonLd(item, settings)) }}
       />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
+          __html: jsonLd(
             breadcrumbJsonLd([
               { name: 'Главная', url: '/' },
               { name: item.categoryLabel, url: `/${catSlug}` },

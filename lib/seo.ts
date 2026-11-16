@@ -8,6 +8,18 @@ export function abs(path: string) {
   return `${SITE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+/**
+ * Сериализация JSON-LD для <script type="application/ld+json">.
+ *
+ * JSON.stringify сам по себе безопасен, но строка «</script>», попавшая
+ * из поля CMS (например, в title), разорвала бы тег и открыла XSS.
+ * Поэтому все «<» эскейпятся в \u003c — для поисковиков это тот же символ,
+ * а преждевременное закрытие тега становится невозможным.
+ */
+export function jsonLd(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, '\\u003c');
+}
+
 export function organizationJsonLd(settings: SiteSettings) {
   return {
     '@context': 'https://schema.org',

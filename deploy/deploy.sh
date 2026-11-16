@@ -112,6 +112,16 @@ else
 fi
 ok "Готов $ENV_PROD"
 
+# Секрет для сборки сайта: Dockerfile.web читает его как BuildKit secret
+# (RUN --mount=type=secret), поэтому он не попадает в слои и историю образа
+mkdir -p secrets
+grep '^STRAPI_TOKEN=' "$ENV_FILE" | cut -d= -f2- > secrets/strapi_token.txt
+if [ -s secrets/strapi_token.txt ]; then
+  ok "Секрет сборки записан в secrets/strapi_token.txt"
+else
+  warn "В .env нет STRAPI_TOKEN — сборка сайта падёт на обращении к CMS"
+fi
+
 # Токен из локальной разработки, если он есть и совпадает с CMS
 if [ -f ".strapi-tokens.json" ] && command -v node >/dev/null 2>&1; then
   LOCAL_TOKEN=$(node -e "try{console.log(require('./.strapi-tokens.json')['genorg-read']||'')}catch(e){console.log('')}")
@@ -167,6 +177,11 @@ fi
 
 step "Собираю и запускаю сайт (Next.js)"
 
+# Каталог резервных заявок должен существовать ДО старта контейнера:
+# Docker создал бы его от root, а пишет в него пользователь nextjs (uid 1001)
+mkdir -p data
+chown 1001:1001 data 2>/dev/null || true
+
 echo "  сборка образа занимает 2–4 минуты…"
 docker compose build web
 docker compose up -d web
@@ -218,7 +233,7 @@ mkdir -p /opt/genorg-backups
 
 cat > /opt/genorg-backups/backup.sh <<'BACKUP'
 #!/usr/bin/env bash
-# Дамп базы + загруженные файлы, ротация 14 копий
+# Дамп базы + загруженные файлы + резервные заявки (data/), ротация 14 копий
 set -euo pipefail
 cd /opt/genorg
 STAMP=$(date +%F-%H%M)
@@ -227,6 +242,11 @@ docker compose exec -T db pg_dump -U "${POSTGRES_USER:-genorg}" "${POSTGRES_DB:-
   | gzip > "/opt/genorg-backups/db-$STAMP.sql.gz"
 docker run --rm -v genorg_strapi-uploads:/u:ro -v /opt/genorg-backups:/out \
   alpine tar czf "/out/uploads-$STAMP.tar.gz" -C /u .
+# Резервный канал заявок содержит персональные данные (имя, телефон) —
+# в бэкап он входит, поэтому файл-канал в проде инструмент крайнего случая
+if [ -d data ]; then
+  tar czf "/opt/genorg-backups/data-$STAMP.tar.gz" data
+fi
 find /opt/genorg-backups -type f -mtime +14 -delete
 BACKUP
 
@@ -258,7 +278,8 @@ echo "  Админка CMS: https://$CMS_HOST/admin  (логин и пароль
 echo ""
 echo "  Что дальше:"
 echo "   • зайти на https://$CMS_HOST/admin и сменить пароли;"
-echo "   • проверить форму заявки (приходят письма на diensystem@mail.ru?);"
+echo "   • проверить форму заявки (заявка появляется в админке CMS → «Заявки»;"
+echo "     письма уходят через цепочку боевого сайта, пока он жив);"
 echo "   • если нужна почта для форм — подключить SMTP (Mail.ru, Яндекс.360);"
 echo "   • добавить сайт в Яндекс.Вебмастер и Яндекс.Карты."
 echo ""
