@@ -11,7 +11,7 @@
 #   3) выдать API-токен (Settings → API Tokens → Full access)
 #   4) положить токен в .env проекта: STRAPI_TOKEN=...
 #   5) загрузить данные:  node scripts/import-to-strapi.mjs
-#   6) переключить фронт:  CMS_PROVIDER=strapi
+#   6) указать фронту адрес CMS:  STRAPI_URL=http://cms:1337
 
 services:
   db:

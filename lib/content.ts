@@ -1,47 +1,18 @@
 /**
  * Доступ к редактируемому контенту.
  *
- * Источник текстов — CMS (коллекция «Текстовый блок»). Если блок в CMS
- * отсутствует или поле пустое, берётся значение из content/cms-content.json:
- * это аварийный запасной вариант, чтобы сайт не развалился, если CMS
- * недоступна. При нормальной работе CMS запасные значения не используются —
- * это проверяет scripts/_check-cms-coverage.mjs.
+ * Источник текстов и меню — CMS (коллекции «Текстовый блок» и
+ * «Пункт меню»). Второго локального источника нет: если CMS недоступна,
+ * адаптер ResilientCMS (lib/cms.ts) берёт данные из снимка
+ * content/snapshot.json, который генерируется из той же CMS.
  *
  * В текстах поддерживаются подстановки вида {price}, {count}:
  * числа берутся из каталога и настроек, поэтому текст остаётся живым.
  */
-import fallbackJson from '@/content/cms-content.json';
 import type { ContentBlock, MenuItem } from './types';
 
 /** Значения для подстановки в тексты */
 export type Tokens = Record<string, string | number>;
-
-/** Структура аварийного снимка контента */
-export interface FallbackContent {
-  blocks: { key: string; group: string; title?: string; items?: Record<string, unknown> }[];
-  menu: MenuItem[];
-  categories: Record<string, unknown>;
-}
-
-/**
- * Аварийный снимок контента.
- *
- * Подключается статическим импортом, чтобы попасть в сборку: файл
- * content/cms-content.json должен быть доступен и на сервере, где
- * рабочая папка может отличаться от исходной.
- */
-let fallbackCache: FallbackContent | null = null;
-
-export function fallbackContent(): FallbackContent {
-  if (fallbackCache) return fallbackCache;
-  const raw = fallbackJson as unknown as FallbackContent;
-  fallbackCache = {
-    blocks: raw.blocks ?? [],
-    menu: raw.menu ?? [],
-    categories: raw.categories ?? {},
-  };
-  return fallbackCache;
-}
 
 /**
  * Подстановки, которые заполняются в браузере.
@@ -76,16 +47,12 @@ export type BlockItems = Record<string, any>;
 
 export class Content {
   private blocks: Map<string, ContentBlock>;
-  private fbBlocks: Map<string, FallbackContent['blocks'][number]>;
   private menuItems: MenuItem[];
-  private fbMenu: MenuItem[];
+  private categoriesFromCms = new Map<string, Record<string, unknown>>();
 
   constructor(blocks: ContentBlock[] = [], menu: MenuItem[] = []) {
-    const fb = fallbackContent();
     this.blocks = new Map(blocks.map((b) => [b.key, b]));
-    this.fbBlocks = new Map(fb.blocks.map((b) => [b.key, b]));
     this.menuItems = menu;
-    this.fbMenu = fb.menu;
   }
 
   /** Есть ли блок в CMS */
@@ -93,12 +60,11 @@ export class Content {
     return this.blocks.has(key);
   }
 
-  /** Сырые items блока: сначала CMS, при отсутствии — запасной снимок */
+  /** Сырые items блока из CMS; пустой объект, если блока нет */
   private rawItems(key: string): BlockItems {
     const b = this.blocks.get(key);
     if (b?.items && typeof b.items === 'object') return b.items as BlockItems;
-    const fb = this.fbBlocks.get(key);
-    return fb?.items ?? {};
+    return {};
   }
 
   /** Сырое значение поля блока (без подстановок) */
@@ -111,10 +77,7 @@ export class Content {
     );
   }
 
-  /**
-   * Строка из блока с подстановками.
-   * Пустое значение — если в CMS и в запасном снимке его нет.
-   */
+  /** Строка из блока с подстановками */
   s(key: string, path: string | undefined, tokens: Tokens = {}): string {
     const v = this.raw(key, path);
     if (typeof v !== 'string') return '';
@@ -171,25 +134,17 @@ export class Content {
     return value;
   }
 
-  /** Пункты меню группы: сначала CMS, при отсутствии — запасной снимок */
+  /** Пункты меню группы из CMS */
   menu(group: MenuItem['group']): MenuItem[] {
-    const src = this.menuItems.length ? this.menuItems : this.fbMenu;
-    return src
+    return this.menuItems
       .filter((m) => m.group === group && m.isActive !== false)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }
 
-  /**
-   * Категория: поля из CMS, при отсутствии — из запасного снимка.
-   * Возвращает null, если категории нет ни там, ни там.
-   */
+  /** Категория с контентом из CMS; null, если её нет */
   category(key: string): Record<string, unknown> | null {
-    const fromCms = this.categoriesFromCms.get(key);
-    if (fromCms) return fromCms;
-    return (fallbackContent().categories[key] as Record<string, unknown>) ?? null;
+    return this.categoriesFromCms.get(key) ?? null;
   }
-
-  private categoriesFromCms = new Map<string, Record<string, unknown>>();
 
   /** Загрузить категории из CMS (вызывается адаптером CMS) */
   setCategories(cats: Record<string, Record<string, unknown>>): void {

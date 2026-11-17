@@ -53,15 +53,17 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       STRAPI_ADMIN_JWT_SECRET: ${STRAPI_ADMIN_JWT_SECRET}
       # Сайт читает CMS по внутренней сети
-      CMS_PROVIDER: strapi
       STRAPI_URL: http://strapi:1337
       # Публичный адрес CMS — для ссылок на фотографии в вёрстке
       CMS_PUBLIC_URL: ${CMS_PUBLIC_URL}
+      # Токен нужен скриптам переноса контента и экспорта снимка,
+      # которые выполняются внутри этого контейнера
+      STRAPI_TOKEN: ${STRAPI_TOKEN}
     volumes:
       # Загруженные в CMS файлы живут отдельно от контейнера
       - strapi-uploads:/app/public/uploads
       # Данные и скрипты импорта — из репозитория, чтобы обновлять без пересборки
-      - ./content:/app/content:ro
+      - ./content:/app/content:rw
       - ./scripts:/app/scripts:ro
     ports:
       # Админка доступна только с самого сервера (через SSH-туннель)
@@ -75,7 +77,6 @@ services:
       dockerfile: deploy/Dockerfile.web
       args:
         # Данные для generateStaticParams тянет из CMS ещё на этапе сборки
-        CMS_PROVIDER: strapi
         STRAPI_URL: http://strapi:1337
         # Публичный адрес CMS — от него строятся ссылки на фотографии
         CMS_PUBLIC_URL: ${CMS_PUBLIC_URL}
@@ -89,7 +90,6 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      CMS_PROVIDER: strapi
       STRAPI_URL: http://strapi:1337
       STRAPI_TOKEN: ${STRAPI_TOKEN}
       # Публичный адрес CMS — от него строятся ссылки на фотографии

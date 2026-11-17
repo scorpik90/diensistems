@@ -239,5 +239,5 @@ async function reset(collection, matchKey) {
     console.log(`  создано: ${created}, обновлено: ${updated}\n`);
   }
 
-  console.log('Готово. Переключите фронт: CMS_PROVIDER=strapi');
+  console.log('Готово. Фронт читает данные из CMS автоматически.');
 })();

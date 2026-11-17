@@ -12,6 +12,7 @@
     "import:content": "node scripts/import-content-to-cms.mjs",
     "import:body-images": "node scripts/import-body-images.mjs",
     "repair:body-images": "node scripts/repair-body-images.mjs",
+    "snapshot": "node scripts/export-snapshot.mjs",
     "check:cms": "node scripts/_check-cms-coverage.mjs",
     "check:placeholders": "node scripts/_check-placeholders.mjs",
     "check:images": "node scripts/check-images.mjs",

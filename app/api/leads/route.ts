@@ -15,8 +15,8 @@ import path from 'node:path';
  *     в существующую почтовую цепочку без переделки бэкенда;
  *   • CRM_WEBHOOK_URL — если CRM настроена.
  *
- * В режиме mock (CMS отключена) заявки пишутся в data/leads.ndjson —
- * чтобы ничего не потерялось при разработке.
+ * РЕЗЕРВНЫЙ КАНАЛ: если CMS недоступна, заявка пишется в
+ * data/leads.ndjson — чтобы не потерять обращение во время аварии.
  *
  * Форма на клиенте не знает ни про /sendfeed/, ни про CRM:
  * она просто шлёт JSON на /api/leads.
@@ -126,7 +126,7 @@ async function saveToCms(data: {
   }
 }
 
-/* ─── Резервная запись в файл (режим mock) ─────────────────────── */
+/* ─── Резервная запись в файл (если CMS недоступна) ────────────── */
 
 async function saveToFile(line: string): Promise<boolean> {
   try {
@@ -243,7 +243,7 @@ export async function POST(request: Request) {
     }
   }
 
-  /* 4) Если CMS недоступна (режим mock) — пишем в файл, чтобы не потерять */
+  /* 4) Если CMS недоступна — пишем в файл, чтобы не потерять обращение */
   if (!delivered.cms) {
     delivered.file = await saveToFile(
       JSON.stringify({ ...lead, createdAt: new Date().toISOString() })

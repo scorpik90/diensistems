@@ -1,18 +1,20 @@
 ﻿/**
  * Слой доступа к CMS.
  *
- * ГЛАВНАЯ ИДЕЯ ВАРИАНТА C1: страницы не знают, откуда пришли данные.
+ * ГЛАВНАЯ ИДЕЯ: страницы не знают, откуда пришли данные.
  * Они спрашивают getCMS() и получают типизированные сущности.
  *
- *   CMS_PROVIDER=mock    → content/seed.json      (прототип, работает офлайн)
- *   CMS_PROVIDER=strapi  → http://cms:1337/api    (прод, реальная CMS)
+ * Источник данных — Strapi (headless CMS, где живёт весь контент
+ * и все фотографии). Отдельного «mock-режима» нет: CMS — единственный
+ * источник правды.
  *
- * Переключение — одна переменная окружения, ноль правок в компонентах.
+ * Если CMS временно недоступна (перезапуск, миграция, обрыв сети),
+ * сайт не отдаёт 500, а читает снимок последнего состояния —
+ * content/snapshot.json. Его обновляет scripts/export-snapshot.mjs.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { cache } from 'react';
-import seed from '@/content/seed.json';
 import { Content } from '@/lib/content';
 import type {
   Article,
@@ -25,7 +27,6 @@ import type {
   MenuItem,
   PriceTable,
   Review,
-  Seed,
   SiteSettings,
   StaticPage,
 } from './types';
@@ -50,7 +51,7 @@ export interface CMSProvider {
   getContentBlocks(): Promise<ContentBlock[]>;
   /** Пункты меню */
   getMenuItems(): Promise<MenuItem[]>;
-  /** Готовый объект доступа к контенту (CMS + запасной снимок) */
+  /** Готовый объект доступа к контенту */
   getContent(): Promise<Content>;
 }
 
@@ -97,11 +98,9 @@ export function toImage(raw: unknown, baseUrl = ''): CmsImage | null {
 /**
  * Приведение записи к общей модели.
  *
- * В mock-режиме цена лежит в price.{value,unit}, в Strapi — в плоских
- * полях priceValue/priceUnit. Здесь обе схемы приводятся к одному виду,
- * чтобы компоненты не знали, откуда пришли данные.
- *
- * Также вычисляются производные поля: URL категории и папка с картинками.
+ * В Strapi цена лежит в плоских полях priceValue/priceUnit, в снимке —
+ * либо так же, либо в price.{value,unit}. Здесь обе схемы приводятся
+ * к одному виду, чтобы компоненты не знали, откуда пришли данные.
  */
 function decorate(
   raw: Equipment & { priceValue?: number; priceUnit?: string },
@@ -123,145 +122,70 @@ function decorate(
   };
 }
 
-/* ─── Мок-адаптер ───────────────────────────────────────────────────── */
+/* ─── Общие преобразования сырых записей ─────────────────────────────── */
 
-const SEED_PATH = path.join(process.cwd(), 'content', 'seed.json');
-
-class MockCMS implements CMSProvider {
-  name = 'mock';
-
-  /** Данные, зашитые в сборку (используются, если файла нет на диске) */
-  private bundled: Seed = seed as unknown as Seed;
-
-  /** Кэш прочитанного с диска файла — перечитывается при изменении mtime */
-  private disk: { data: Seed; mtime: number } | null = null;
-
-  /**
-   * В mock-режиме данные читаются с диска, а не из бандла.
-   * Правка content/seed.json подхватывается при следующем запросе
-   * (после истечения ISR-окна) — без пересборки приложения.
-   * Это то, чем заменяется редактор CMS на этапе прототипа.
-   */
-  private data(): Seed {
-    try {
-      const stat = fs.statSync(SEED_PATH);
-      if (!this.disk || this.disk.mtime !== stat.mtimeMs) {
-        const raw = fs.readFileSync(SEED_PATH, 'utf8');
-        this.disk = { data: JSON.parse(raw) as Seed, mtime: stat.mtimeMs };
-      }
-      return this.disk.data;
-    } catch {
-      return this.bundled;
-    }
-  }
-
-  private decorate(e: Equipment): Equipment {
-    return decorate(e, this.data().categories);
-  }
-
-  async getSettings() {
-    return this.data().settings;
-  }
-  async getCategories() {
-    return this.data().categories;
-  }
-  async getEquipment() {
-    return this.data().equipment.map((e) => this.decorate(e));
-  }
-  async getEquipmentByCategory(category: CategoryId) {
-    return this.data().equipment.filter((e) => e.category === category).map((e) => this.decorate(e));
-  }
-  async getEquipmentBySlug(slug: string) {
-    const found = this.data().equipment.find((e) => e.slug === slug);
-    return found ? this.decorate(found) : null;
-  }
-  async getArticles() {
-    return this.data().articles;
-  }
-  /** Кэш content/reviews.json (по mtime — как и seed.json) */
-  private reviewsFile: { data: Review[]; mtime: number } | null = null;
-
-  async getReviews() {
-    /* В seed.json поле reviews пустое — реальные отзывы с Яндекс.Карт
-       пишет в content/reviews.json скрипт fetch-yandex-reviews.mjs
-       (формат: { all: Review[] }). Читаем оттуда, seed — как запасной
-       источник. */
-    return this.reviewsData().sort((a, b) => b.rating - a.rating || b.date.localeCompare(a.date));
-  }
-
-  private reviewsData(): Review[] {
-    const fromSeed = this.data().reviews ?? [];
-    if (fromSeed.length) return fromSeed;
-    try {
-      const p = path.join(process.cwd(), 'content', 'reviews.json');
-      const stat = fs.statSync(p);
-      if (!this.reviewsFile || this.reviewsFile.mtime !== stat.mtimeMs) {
-        const json = JSON.parse(fs.readFileSync(p, 'utf8')) as { all?: Review[] };
-        this.reviewsFile = { data: json.all ?? [], mtime: stat.mtimeMs };
-      }
-      return this.reviewsFile.data;
-    } catch {
-      return [];
-    }
-  }
-  async getArticle(slug: string) {
-    return this.data().articles.find((a) => a.slug === slug) ?? null;
-  }
-  async getCases() {
-    return this.data().cases;
-  }
-  async getCase(slug: string) {
-    return this.data().cases.find((c) => c.slug === slug) ?? null;
-  }
-  async getPages() {
-    return this.data().pages;
-  }
-  async getPage(slug: string) {
-    return this.data().pages.find((p) => p.slug === slug) ?? null;
-  }
-  async getPriceTables() {
-    return this.data().priceTables;
-  }
-  async getRedirects() {
-    return this.data().redirects;
-  }
-
-  /** В mock-режиме блоков в CMS нет — берём из запасного снимка */
-  async getContentBlocks(): Promise<ContentBlock[]> {
-    return [];
-  }
-
-  async getMenuItems(): Promise<MenuItem[]> {
-    return [];
-  }
-
-  async getContent(): Promise<Content> {
-    const c = new Content([], []);
-    const cats: Record<string, Record<string, unknown>> = {};
-    for (const cat of this.data().categories) {
-      cats[cat.id] = {
-        answer: null,
-        facts: null,
-        includes: null,
-        includesNote: null,
-        faq: null,
-        seoDescription: null,
-        heroTitle: null,
-      };
-    }
-    c.setCategories(cats);
-    return c;
-  }
+/** Настройки сайта: логотипы и фон приводятся к модели изображения */
+function mapSettings(raw: SiteSettings, mediaBase: string): SiteSettings {
+  return {
+    ...raw,
+    logo: toImage(raw.logo, mediaBase),
+    logoMark: toImage(raw.logoMark, mediaBase),
+    heroImage: toImage(raw.heroImage, mediaBase),
+  };
 }
 
-/* ─── Strapi-адаптер ────────────────────────────────────────────────── */
-
-interface StrapiEntity<T> {
-  id: number;
-  documentId: string;
-  /** Strapi 5 отдаёт атрибуты плоско, без вложенного .attributes */
-  [K: string]: T | number | string | undefined;
+/** Категории: в Strapi ключ лежит в поле «key», в модели — в id */
+function mapCategories(list: Category[], mediaBase: string): Category[] {
+  return list.map((c) => ({
+    ...c,
+    id: (c.key ?? c.id) as CategoryId,
+    image: toImage(c.image, mediaBase),
+  }));
 }
+
+/** Позиции каталога */
+function mapEquipment(
+  list: Equipment[],
+  categories: Category[],
+  mediaBase: string
+): Equipment[] {
+  return list.map((e) => decorate(e, categories, mediaBase));
+}
+
+/** Объекты (кейсы) */
+function mapCases(list: CaseStudy[], mediaBase: string): CaseStudy[] {
+  return list.map((c) => ({ ...c, image: toImage(c.image, mediaBase) }));
+}
+
+/**
+ * Сборка объекта доступа к контенту.
+ *
+ * Текстовые блоки и меню — из CMS (или из снимка CMS при аварии).
+ * Других источников контента нет.
+ */
+function buildContent(
+  blocks: ContentBlock[],
+  menu: MenuItem[],
+  categories: Category[]
+): Content {
+  const content = new Content(blocks, menu);
+  const cats: Record<string, Record<string, unknown>> = {};
+  for (const c of categories) {
+    cats[c.id] = {
+      answer: c.answer ?? null,
+      facts: c.facts ?? null,
+      includes: c.includes ?? null,
+      includesNote: c.includesNote ?? null,
+      faq: c.faq ?? null,
+      seoDescription: c.seoDescription ?? null,
+      heroTitle: c.heroTitle ?? null,
+    };
+  }
+  content.setCategories(cats);
+  return content;
+}
+
+/* ─── Strapi ─────────────────────────────────────────────────────────── */
 
 class StrapiCMS implements CMSProvider {
   name = 'strapi';
@@ -276,7 +200,16 @@ class StrapiCMS implements CMSProvider {
   }
 
   private async fetchList<T>(path: string): Promise<T[]> {
-    const res = await fetch(`${this.base}${path}`, {
+    /* Strapi по умолчанию отдаёт только 25 записей. Для content-blocks
+       этого хватало до поры, пока их стало 27: два блока (errors.main,
+       seo.main) тихо исчезали, а их значения подменялись локальным
+       снимком. Теперь размер страницы задаётся для всех коллекций
+       централизованно — новая запись в CMS не должна пропадать. */
+    const full =
+      path.includes('pagination[pageSize]=')
+        ? path
+        : path + (path.includes('?') ? '&' : '?') + 'pagination[pageSize]=500';
+    const res = await fetch(`${this.base}${full}`, {
       headers: { Authorization: `Bearer ${this.token}` },
       /* TTL fetch'ей = revalidate страниц (60 с). Раньше здесь стояло 300:
          после правки цены данные сайта отставали от CMS до 5 минут
@@ -310,12 +243,7 @@ class StrapiCMS implements CMSProvider {
   async getSettings() {
     const s = await this.one<SiteSettings>('/site-settings?pagination[pageSize]=1&populate=*');
     if (!s) throw new Error('Strapi: нет записи site-settings');
-    return {
-      ...s,
-      logo: toImage(s.logo, this.mediaBase),
-      logoMark: toImage(s.logoMark, this.mediaBase),
-      heroImage: toImage(s.heroImage, this.mediaBase),
-    };
+    return mapSettings(s, this.mediaBase);
   }
 
   async getCategories() {
@@ -323,17 +251,13 @@ class StrapiCMS implements CMSProvider {
     /* В Strapi категория хранится с полем «key», а в модели id.
        Приводим к общему виду — иначе не работает связь
        «позиция → её категория» (и, как следствие, хлебные крошки). */
-    return list.map((c) => ({
-      ...c,
-      id: (c.key ?? c.id) as CategoryId,
-      image: toImage(c.image, this.mediaBase),
-    }));
+    return mapCategories(list, this.mediaBase);
   }
 
   private async equipment(): Promise<Equipment[]> {
     const categories = await this.getCategories();
     const list = await this.fetchList<Equipment>('/equipment?pagination[pageSize]=200&populate=*');
-    return list.map((e) => decorate(e, categories, this.mediaBase));
+    return mapEquipment(list, categories, this.mediaBase);
   }
 
   async getEquipment() {
@@ -371,7 +295,7 @@ class StrapiCMS implements CMSProvider {
 
   async getCases() {
     const list = await this.fetchList<CaseStudy>('/cases?sort=title:asc&populate=*');
-    return list.map((c) => ({ ...c, image: toImage(c.image, this.mediaBase) }));
+    return mapCases(list, this.mediaBase);
   }
 
   async getCase(slug: string) {
@@ -418,21 +342,148 @@ class StrapiCMS implements CMSProvider {
       this.getMenuItems(),
       this.getCategories(),
     ]);
-    const content = new Content(blocks, menu);
-    const cats: Record<string, Record<string, unknown>> = {};
-    for (const c of categories) {
-      cats[c.id] = {
-        answer: c.answer ?? null,
-        facts: c.facts ?? null,
-        includes: c.includes ?? null,
-        includesNote: c.includesNote ?? null,
-        faq: c.faq ?? null,
-        seoDescription: c.seoDescription ?? null,
-        heroTitle: c.heroTitle ?? null,
-      };
+    return buildContent(blocks, menu, categories);
+  }
+}
+
+/* ─── Снимок CMS (страховка на время аварии) ─────────────────────────── */
+
+/**
+ * Снимок состояния CMS.
+ *
+ * Читает content/snapshot.json — файл, который генерирует
+ * scripts/export-snapshot.mjs из живой CMS. Нужен только на случай,
+ * если CMS недоступна: страница продолжает отдавать последнее
+ * известное состояние вместо 500.
+ *
+ * Это не второй источник правды: снимок генерируется из CMS и
+ * обновляется тем же скриптом.
+ */
+export interface Snapshot {
+  generatedAt?: string;
+  records: {
+    settings: SiteSettings | null;
+    categories: Category[];
+    equipment: Equipment[];
+    articles: Article[];
+    reviews: Review[];
+    cases: CaseStudy[];
+    pages: StaticPage[];
+    priceTables: PriceTable[];
+    redirects: { from: string; to: string }[];
+    contentBlocks: ContentBlock[];
+    menuItems: MenuItem[];
+  };
+}
+
+const SNAPSHOT_PATH = path.join(process.cwd(), 'content', 'snapshot.json');
+
+class SnapshotCMS implements CMSProvider {
+  name = 'snapshot';
+
+  private cached: { data: Snapshot; mtime: number } | null = null;
+
+  private get mediaBase(): string {
+    const pub = process.env.CMS_PUBLIC_URL;
+    if (pub) return pub.replace(/\/$/, '');
+    return '';
+  }
+
+  /** Файл перечитывается при изменении mtime */
+  private data(): Snapshot | null {
+    try {
+      const stat = fs.statSync(SNAPSHOT_PATH);
+      if (!this.cached || this.cached.mtime !== stat.mtimeMs) {
+        const raw = fs.readFileSync(SNAPSHOT_PATH, 'utf8');
+        this.cached = { data: JSON.parse(raw) as Snapshot, mtime: stat.mtimeMs };
+      }
+      return this.cached.data;
+    } catch {
+      return null;
     }
-    content.setCategories(cats);
-    return content;
+  }
+
+  private records(): Snapshot['records'] | null {
+    return this.data()?.records ?? null;
+  }
+
+  async getSettings() {
+    const s = this.records()?.settings;
+    if (!s) throw new Error('Снимок CMS: нет настроек');
+    return mapSettings(s, this.mediaBase);
+  }
+
+  async getCategories() {
+    const list = this.records()?.categories ?? [];
+    return mapCategories(list, this.mediaBase);
+  }
+
+  async getEquipment() {
+    const categories = await this.getCategories();
+    return mapEquipment(this.records()?.equipment ?? [], categories, this.mediaBase);
+  }
+
+  async getEquipmentByCategory(category: CategoryId) {
+    return (await this.getEquipment()).filter((e) => e.category === category);
+  }
+
+  async getEquipmentBySlug(slug: string) {
+    const found = (await this.getEquipment()).find((e) => e.slug === slug);
+    return found ?? null;
+  }
+
+  async getArticles() {
+    return this.records()?.articles ?? [];
+  }
+
+  async getReviews() {
+    const list = this.records()?.reviews ?? [];
+    return list.sort((a, b) => b.rating - a.rating || b.date.localeCompare(a.date));
+  }
+
+  async getArticle(slug: string) {
+    return (this.records()?.articles ?? []).find((a) => a.slug === slug) ?? null;
+  }
+
+  async getCases() {
+    return mapCases(this.records()?.cases ?? [], this.mediaBase);
+  }
+
+  async getCase(slug: string) {
+    return (await this.getCases()).find((c) => c.slug === slug) ?? null;
+  }
+
+  async getPages() {
+    return this.records()?.pages ?? [];
+  }
+
+  async getPage(slug: string) {
+    return (this.records()?.pages ?? []).find((p) => p.slug === slug) ?? null;
+  }
+
+  async getPriceTables() {
+    return this.records()?.priceTables ?? [];
+  }
+
+  async getRedirects() {
+    return Object.fromEntries((this.records()?.redirects ?? []).map((e) => [e.from, e.to]));
+  }
+
+  async getContentBlocks(): Promise<ContentBlock[]> {
+    return (this.records()?.contentBlocks ?? []).filter((b) => b.isActive !== false);
+  }
+
+  async getMenuItems(): Promise<MenuItem[]> {
+    return (this.records()?.menuItems ?? []).filter((m) => m.isActive !== false);
+  }
+
+  async getContent(): Promise<Content> {
+    const [blocks, menu, categories] = await Promise.all([
+      this.getContentBlocks(),
+      this.getMenuItems(),
+      this.getCategories(),
+    ]);
+    return buildContent(blocks, menu, categories);
   }
 }
 
@@ -442,12 +493,12 @@ class StrapiCMS implements CMSProvider {
  * CMS с запасным вариантом.
  *
  * Если Strapi недоступна (нет сети, CMS перезапускается, миграция),
- * сайт продолжает работать на локальном снимке content/seed.json
- * и content/cms-content.json. Это не «источник правды» — он нужен,
- * чтобы страница не отдавала 500 из-за недоступности CMS.
+ * сайт продолжает работать на снимке последнего состояния.
+ * Это не «источник правды» — он нужен, чтобы страница не отдавала
+ * 500 из-за недоступности CMS.
  */
 class ResilientCMS implements CMSProvider {
-  name = 'strapi+fallback';
+  name = 'strapi+snapshot';
 
   constructor(
     private primary: CMSProvider,
@@ -459,7 +510,7 @@ class ResilientCMS implements CMSProvider {
       return await fn(this.primary);
     } catch (e) {
       console.error(
-        `[cms] ${name}: Strapi недоступна (${(e as Error).message}) — работает запасной снимок`
+        `[cms] ${name}: CMS недоступна (${(e as Error).message}) — работает снимок`
       );
       return fn(this.backup);
     }
@@ -518,7 +569,7 @@ class ResilientCMS implements CMSProvider {
   }
 }
 
-/* ─── Фабрика ────────────────────────────────────────────────────────── */
+/* ─── Кэш запросов ───────────────────────────────────────────────────── */
 
 /**
  * Оборачивает методы провайдера в React cache().
@@ -555,26 +606,22 @@ function withRequestCache(provider: CMSProvider): CMSProvider {
   };
 }
 
+/* ─── Фабрика ────────────────────────────────────────────────────────── */
+
 let instance: CMSProvider | null = null;
 
 export function getCMS(): CMSProvider {
   if (instance) return instance;
 
-  const provider = process.env.CMS_PROVIDER ?? 'mock';
-
-  if (provider === 'strapi') {
-    instance = withRequestCache(
-      new ResilientCMS(
-        new StrapiCMS(
-          process.env.STRAPI_URL ?? 'http://127.0.0.1:1337',
-          process.env.STRAPI_TOKEN ?? ''
-        ),
-        new MockCMS()
-      )
-    );
-  } else {
-    instance = withRequestCache(new MockCMS());
-  }
+  instance = withRequestCache(
+    new ResilientCMS(
+      new StrapiCMS(
+        process.env.STRAPI_URL ?? 'http://127.0.0.1:1337',
+        process.env.STRAPI_TOKEN ?? ''
+      ),
+      new SnapshotCMS()
+    )
+  );
 
   return instance;
 }

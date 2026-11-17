@@ -15,10 +15,8 @@ COPY . .
 # ВАЖНО: токен передаётся BuildKit secret (см. docker-compose.yml → secrets),
 # а не как ARG — build args сохраняются в истории образа, secret не попадает
 # ни в слои, ни в `docker history`.
-ARG CMS_PROVIDER=strapi
 ARG STRAPI_URL=http://strapi:1337
 ARG CMS_PUBLIC_URL
-ENV CMS_PROVIDER=${CMS_PROVIDER}
 ENV STRAPI_URL=${STRAPI_URL}
 # Ссылка на фотографии в собранной вёрстке — публичный адрес CMS
 ENV CMS_PUBLIC_URL=${CMS_PUBLIC_URL}

@@ -57,6 +57,9 @@ node scripts/deploy-schemas.mjs      # схемы из cms/schemas → cms-admin
 node scripts/bootstrap-strapi.mjs    # админ + API-токены + менеджеры
 npm --prefix cms-admin run develop   # CMS на :1337
 
+# снимок CMS — страховка на случай, если CMS недоступна
+node scripts/export-snapshot.mjs     # → content/snapshot.json (в .gitignore)
+
 # в отдельном терминале
 npm run dev                          # сайт на :3100
 ```
@@ -65,13 +68,12 @@ npm run dev                          # сайт на :3100
 |---|---|
 | http://127.0.0.1:3100 | сайт |
 | http://127.0.0.1:1337/admin | админка CMS |
-| http://127.0.0.1:3100/admin | локальный редактор (mock-режим, только для разработки) |
+| http://127.0.0.1:3100/admin | короткая ссылка на админку CMS (редирект) |
 
 Переменные окружения — в `variant-c/.env` (в `.gitignore`), образец —
 `.env.example`.
 
 ```bash
-CMS_PROVIDER=strapi          # strapi — боевой режим, mock — автономно
 STRAPI_URL=http://127.0.0.1:1337
 STRAPI_TOKEN=…               # из .strapi-tokens.json
 CMS_PUBLIC_URL=http://127.0.0.1:1337   # публичный адрес CMS для ссылок на фото
@@ -108,9 +110,9 @@ PostgreSQL, Strapi и Next.js за Caddy с авто-SSL, импортирует
 │  menu-items (25) — шапка, мега-меню, колонки подвала            │
 │  МЕДИАТЕКА (62 файла) — все фотографии сайта                    │
 └───────────────┬────────────────────────────────────────────────┘
-                │ REST API · CMS_PROVIDER=strapi
+                │ REST API (единственный источник данных)
                 │ ───────────────────────────────────────────────
-                │ content/*.json  · CMS_PROVIDER=mock (запасной вариант)
+                │ при аварии CMS — снимок content/snapshot.json
                 ▼
 ┌────────────────────────────────────────────────────────────────┐
 │  Next.js 15 (App Router)                                       │
@@ -279,9 +281,12 @@ node scripts/import-body-images.mjs          # фотографии внутри
 ### Если CMS упала
 
 Сайт не отдаёт 500: адаптер `ResilientCMS` (`lib/cms.ts`) переключается
-на локальный снимок `content/seed.json` и `content/cms-content.json`
-и пишет предупреждение в лог. Запасной снимок — не второй источник
-правды, а страховка на время аварии.
+на снимок `content/snapshot.json` и пишет предупреждение в лог. Отдельного
+«mock-режима» с локальным редактором больше нет — CMS единственный
+источник правды, а снимок лишь страховка на время аварии. Снимок
+генерируется из живой CMS (`node scripts/export-snapshot.mjs`), вручную
+не ведётся и в репозиторий не попадает. Обновлять его после крупных
+правок контента и обязательно перед деплоем.
 
 ---
 
@@ -531,8 +536,9 @@ node scripts/_check-secrets.mjs        # секретов в индексе git 
 * **Токен сборки** (`STRAPI_TOKEN`) передаётся в образ как BuildKit
   **secret**, а не как `ARG`: аргументы сборки сохраняются в истории
   образа, секрет — нет.
-* **Мок-редактор** `/admin` в production-сборке отключён
-  (`ALLOW_MOCK_ADMIN=1` включает).
+* **Одна точка правки контента.** Локального редактора и mock-режима
+  нет: `/admin` — редирект в админку CMS. Запись идёт только через
+  Strapi с его ролями и историей изменений.
 * **Пароли не в коде.** `create-managers.mjs` берёт их из переменных
   окружения; `.env`, `.env.local`, `.env.production`,
   `.strapi-tokens.json`, `secrets/` и `data/` — в `.gitignore`.
@@ -548,13 +554,14 @@ variant-c/
 ├── app/                     Next.js App Router
 │   ├── layout.tsx           <html lang>, мета, JSON-LD, cookie-баннер
 │   ├── page.tsx             главная
+│   ├── admin/page.tsx       редирект /admin → админка CMS
 │   ├── [...slug]/page.tsx   catch-all для плоских legacy-URL
 │   └── api/leads/route.ts   приём заявок
 ├── components/              React-компоненты (серверные и клиентские)
 ├── lib/                     доступ к CMS, шаблоны, фильтры, SEO, санитизация
 ├── cms/schemas/             схемы Strapi (источник для deploy-schemas.mjs)
 ├── cms-admin/               приложение Strapi 5 (админка, контент-типы)
-├── content/                 снимок данных: seed, тексты, отзывы, юр. документы
+├── content/                 исходные данные для импорта + snapshot.json (авария)
 ├── assets/legacy-images/    архив исходных фото (для перезаливки в CMS)
 ├── public/                  статика приложения: иконки, llms.txt, манифест
 ├── scripts/                 миграции, импорты, проверки
